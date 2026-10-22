@@ -90,6 +90,46 @@ VITA_API_URL=http://localhost:8000 npm run start   # http://localhost:3000
 
 The browser calls `/api/*`, which Next forwards to the backend. The session token is kept in `sessionStorage` for now (see ADR-0002). This must change to HttpOnly cookies before any shared environment.
 
+## Deployment (free tier: Vercel + Render)
+
+Split hosting: the frontend on Vercel, the backend + Postgres on Render. Both have a free tier,
+suitable for a demo, not for anything handling real user data at scale -- see the caveats below.
+
+**Backend (Render)**
+
+1. In the Render dashboard: **New > Blueprint**, point it at this repo. Render reads
+   [`render.yaml`](render.yaml) at the repo root and provisions a free web service
+   (`imparency-backend`, rooted at `backend/`) plus a free Postgres database automatically.
+2. Once created, open the `imparency-backend` service > **Environment**, and add
+   `VITA_LLM_API_KEY` yourself (optional -- without it, verification-assist falls back to a
+   deterministic draft, see `app/ai/assist.py`). It's deliberately left out of `render.yaml` so
+   the key is never committed.
+3. Deploy. The start command runs `alembic upgrade head` before starting the server, so the
+   schema builds itself on first deploy -- no separate migration step needed, and no demo data is
+   seeded (production never carries fixtures presented as real activity, see `CLAUDE.md`).
+4. Note the service's public URL (`https://imparency-backend.onrender.com`-style) -- the frontend needs it next.
+
+**Frontend (Vercel)**
+
+1. **Import Project** from this repo. When asked for the **Root Directory**, set it to `frontend`
+   -- this is a monorepo, Vercel needs to know not to build from the repo root.
+2. Add one environment variable: `VITA_API_URL` = the Render backend URL from above (no
+   `NEXT_PUBLIC_` prefix -- it's read server-side in `next.config.mjs`, the browser never sees it
+   directly, it only ever calls same-origin `/api/*`).
+3. Deploy. Framework preset (Next.js), build command, and output directory are auto-detected.
+
+**Free-tier caveats** (read before treating this as more than a demo link):
+
+- Render's free web service has an **ephemeral disk** -- anything written to `VITA_STORAGE_DIR`
+  (uploaded NGO compliance documents, PAN proofs) is lost on every redeploy or restart. A
+  persistent disk is a paid Render add-on.
+- Render's **free Postgres database expires 90 days** after creation and is not auto-renewed.
+- Render's free web service **spins down after inactivity**; the next request pays a cold-start cost.
+- Vercel's **Hobby plan is for personal/non-commercial use** per its terms -- a real product deploy
+  should be on Vercel Pro.
+- The `sessionStorage` token and local-disk storage gaps noted above and in "Known gaps" still
+  apply; this deployment doesn't fix them, it just gets the app reachable at a URL.
+
 ## Tests
 
 - `python -m pytest -q` (backend, 92 tests): authentication, tenancy, roles, verification, profile publication, document validation and storage, review rules, public visibility, download headers, projects, donations, the public feed, verification assist, and database-level append-only enforcement.

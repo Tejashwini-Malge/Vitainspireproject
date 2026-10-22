@@ -1,3 +1,4 @@
+from pydantic import field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -11,6 +12,17 @@ class Settings(BaseSettings):
     model_config = SettingsConfigDict(env_prefix="VITA_", env_file=".env", extra="ignore")
 
     database_url: str
+
+    @field_validator("database_url")
+    @classmethod
+    def _use_psycopg3_driver(cls, v: str) -> str:
+        # Managed Postgres hosts (Render, Heroku, Railway, ...) hand out a bare
+        # "postgresql://" connection string, which makes SQLAlchemy default to psycopg2 --
+        # not installed here, this app uses psycopg3. Normalize it rather than requiring
+        # every deploy target to know about the driver suffix.
+        if v.startswith("postgresql://"):
+            return "postgresql+psycopg://" + v[len("postgresql://") :]
+        return v
     session_ttl_hours: int = 24 * 7
     # Private document storage root. Must live outside any web-served directory.
     storage_dir: str
