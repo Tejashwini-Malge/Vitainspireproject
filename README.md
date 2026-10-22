@@ -45,6 +45,7 @@ Configuration is read from environment variables with the `VITA_` prefix. There 
 | `VITA_MAX_UPLOAD_BYTES` | no (10485760) | Upload size limit |
 | `VITA_LLM_API_KEY` | no | Enables the live verification-assist model call. Unset means the deterministic draft only -- the feature works either way |
 | `VITA_LLM_MODEL` | no (`claude-haiku-4-5-20251001`) | Model used for verification assist, when a key is set |
+| `VITA_ADMIN_BOOTSTRAP_TOKEN` | no | Unset by default. Enables `POST /admin/bootstrap` to grant the first platform admin on hosts with no DB shell access -- see Deployment |
 
 ### Migrations
 
@@ -117,6 +118,27 @@ suitable for a demo, not for anything handling real user data at scale -- see th
    `NEXT_PUBLIC_` prefix -- it's read server-side in `next.config.mjs`, the browser never sees it
    directly, it only ever calls same-origin `/api/*`).
 3. Deploy. Framework preset (Next.js), build command, and output directory are auto-detected.
+
+**First platform admin**
+
+There's no seeded admin account and no self-service way to become one -- that's deliberate
+(see `app/cli.py`): admin power requires infrastructure access, not an app account. Normally
+you'd run `python -m app.cli grant-platform-admin <email>` with
+`VITA_DATABASE_URL` pointed at the database. Render's **free tier has no shell/SSH access**
+(that needs a paid plan), so for a free-tier deploy, set `VITA_ADMIN_BOOTSTRAP_TOKEN` yourself in
+the `imparency-backend` service's **Environment** tab (any value you choose, not in `render.yaml`,
+not shared anywhere) and register the account you want to promote through the normal `/register`
+flow, then:
+
+```bash
+curl -X POST https://<your-render-url>/admin/bootstrap \
+  -H "Content-Type: application/json" \
+  -d '{"email": "you@example.com", "token": "<the value you set>"}'
+```
+
+The endpoint refuses every request until that env var is set, and is meant to be used once; there's
+no way to call it again usefully once your admin account exists (nothing stops it being called
+again, but there's also no reason to -- rotate or remove the token afterward if you want it closed).
 
 **Free-tier caveats** (read before treating this as more than a demo link):
 

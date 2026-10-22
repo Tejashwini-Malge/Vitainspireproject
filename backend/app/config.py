@@ -23,6 +23,7 @@ class Settings(BaseSettings):
         if v.startswith("postgresql://"):
             return "postgresql+psycopg://" + v[len("postgresql://") :]
         return v
+
     session_ttl_hours: int = 24 * 7
     # Private document storage root. Must live outside any web-served directory.
     storage_dir: str
@@ -32,6 +33,10 @@ class Settings(BaseSettings):
     llm_api_key: str | None = None
     llm_model: str = "nvidia/nemotron-3.5-lightning:free"  # NVIDIA Nemotron 3.5 Lightning on OpenRouter
     llm_provider: str = "openrouter"
+    # One-time bootstrap for the very first platform admin, for hosts with no DB/shell access
+    # (e.g. Render's free tier). Unset by default -- the endpoint refuses every request until an
+    # operator deliberately sets this in the host's environment, never through the app itself.
+    admin_bootstrap_token: str | None = None
 
 
 settings = Settings()

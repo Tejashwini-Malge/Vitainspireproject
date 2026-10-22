@@ -7,7 +7,7 @@ from sqlalchemy import text
 
 from app.context import correlation_id
 from app.db import engine
-from app.routers import admin, admin_intelligence, auth, campaigns, campaigns_public, conversations, documents, donations, email_notifications, escalations, feed, inbox, notifications, onboarding, opportunities, orgs, pan_verification, payments, profiles, projects, proposals, public, social_receipts
+from app.routers import admin, admin_bootstrap, admin_intelligence, auth, campaigns, campaigns_public, conversations, documents, donations, email_notifications, escalations, feed, inbox, notifications, onboarding, opportunities, orgs, pan_verification, payments, profiles, projects, proposals, public, social_receipts
 
 log = logging.getLogger("vitainspire")
 
@@ -63,6 +63,7 @@ def create_app() -> FastAPI:
     app.include_router(feed.router)
     app.include_router(feed.geocode_router)
     app.include_router(admin.router)
+    app.include_router(admin_bootstrap.router)
     app.include_router(admin_intelligence.router)
     return app
 
