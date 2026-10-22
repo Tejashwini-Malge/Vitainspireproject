@@ -1,0 +1,93 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  --focus: #b9650a;
+}
+
+body {
+  color: #2a2b26;
+  background-color: #f7f1e3;
+  /* Faint ruled ledger lines -- the paper this whole platform is meant to replace. */
+  background-image: repeating-linear-gradient(
+    to bottom,
+    transparent,
+    transparent 2rem,
+    rgba(29, 43, 79, 0.045) 2rem,
+    rgba(29, 43, 79, 0.045) calc(2rem + 1px)
+  );
+}
+
+h1, h2, h3 {
+  font-family: var(--font-display);
+  letter-spacing: -0.01em;
+}
+
+/* Visible keyboard focus everywhere; never remove it without a replacement. */
+:focus-visible {
+  outline: 3px solid var(--focus);
+  outline-offset: 2px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+}
+
+/* The ledger stub: a torn receipt. Used for anything that represents one real, countable
+   thing -- a project, a donation, a receipt -- never as decoration on its own. A dedicated
+   .stub-tear child carries the perforation, so the card works at any content height. */
+.stub-card {
+  display: flex;
+  flex-direction: column;
+  background: #fffdf7;
+  border: 1px solid #ddd2b8;
+  border-radius: 2px;
+}
+
+.stub-tear {
+  position: relative;
+  margin-top: auto;
+  border-top: 1px dashed #ddd2b8;
+}
+
+.stub-tear::before,
+.stub-tear::after {
+  content: "";
+  position: absolute;
+  top: -0.5rem;
+  width: 1rem;
+  height: 1rem;
+  border-radius: 9999px;
+  background: #f7f1e3;
+  border: 1px solid #ddd2b8;
+}
+
+.stub-tear::before {
+  left: -0.75rem;
+}
+
+.stub-tear::after {
+  right: -0.75rem;
+}
+
+/* An ink stamp: rotated, slightly irregular, the one place colour is load-bearing and also
+   spelled out in words right next to it (never colour alone). */
+.ink-stamp {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  transform: rotate(-3deg);
+  border: 2px solid currentColor;
+  border-radius: 3px;
+  padding: 0.15rem 0.55rem;
+  font-family: var(--font-mono);
+  font-size: 0.7rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  mix-blend-mode: multiply;
+}
