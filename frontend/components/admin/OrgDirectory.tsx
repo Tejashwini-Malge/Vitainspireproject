@@ -3,9 +3,14 @@
 import { useCallback, useEffect, useState } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
+import { motion } from 'framer-motion';
 import { api, ApiError, clearToken, getToken } from '@/lib/api';
 import { AdminNav } from '@/components/admin/AdminNav';
 import { VerificationBadge } from '@/components/VerificationBadge';
+import { PageHeader } from '@/components/ui/page-header';
+import { Card } from '@/components/ui/card';
+import { Input } from '@/components/ui/input';
+import { EmptyState } from '@/components/ui/empty-state';
 import type { AdminOrgRow, OrgType, VerificationStatus } from '@/lib/types';
 
 const STATUSES: (VerificationStatus | 'ALL')[] = ['ALL', 'APPROVED', 'PENDING', 'REJECTED'];
@@ -71,21 +76,18 @@ export function OrgDirectory({
   );
 
   return (
-    <div className="max-w-6xl mx-auto p-8">
+    <div className="mx-auto max-w-6xl space-y-6 p-8">
       <AdminNav />
 
-      <header className="mb-4">
-        <h1 className="text-2xl font-bold text-gray-900">{title}</h1>
-        <p className="text-gray-600 mt-1">{blurb}</p>
-      </header>
+      <PageHeader eyebrow="Admin" title={title} description={blurb} />
 
-      <div className="flex flex-wrap gap-3 items-center mb-4">
-        <label className="text-sm text-gray-700">
+      <div className="flex flex-wrap items-center gap-3">
+        <label className="font-mono text-xs uppercase tracking-wide text-muted">
           Status{' '}
           <select
             value={statusFilter}
             onChange={(e) => setStatusFilter(e.target.value as VerificationStatus | 'ALL')}
-            className="ml-1 rounded border border-gray-300 px-2 py-1"
+            className="ml-1 rounded-sm border border-line bg-[#FFFDF7] px-2 py-1 text-sm normal-case tracking-normal text-ink"
           >
             {STATUSES.map((s) => (
               <option key={s} value={s}>
@@ -94,79 +96,90 @@ export function OrgDirectory({
             ))}
           </select>
         </label>
-        <input
+        <Input
           value={search}
           onChange={(e) => setSearch(e.target.value)}
           placeholder="Search by name…"
-          className="rounded border border-gray-300 px-3 py-1 text-sm"
+          className="w-56"
         />
-        <span className="text-sm text-gray-500">
+        <span className="text-sm text-muted">
           {rows === null ? '' : `${visible.length} of ${rows.length}`}
         </span>
       </div>
 
-      {error && <div className="bg-red-100 text-red-700 p-3 rounded mb-4">{error}</div>}
+      {error && (
+        <div className="rounded-sm border border-status-rejected/40 bg-status-rejected/10 p-3 text-sm text-status-rejected">
+          {error}
+        </div>
+      )}
 
       {rows === null ? (
-        <p className="text-gray-500">Loading…</p>
+        <p className="text-muted">Loading…</p>
       ) : visible.length === 0 ? (
-        <div className="text-center py-14 text-gray-500 border border-dashed border-gray-300 rounded-lg">
-          <p className="text-lg mb-1">Nothing to show</p>
-          <p className="text-sm">
-            {search.trim()
+        <EmptyState
+          title="Nothing to show"
+          description={
+            search.trim()
               ? 'No organisation matches that name.'
               : statusFilter === 'ALL'
                 ? 'No organisations of this type have registered yet.'
-                : `No organisations are currently ${statusFilter.toLowerCase()}.`}
-          </p>
-        </div>
+                : `No organisations are currently ${statusFilter.toLowerCase()}.`
+          }
+        />
       ) : (
-        <div className="overflow-x-auto">
-          <table className="w-full text-sm border border-gray-200 rounded-lg">
-            <thead className="bg-gray-50 text-left">
+        <Card className="overflow-x-auto">
+          <table className="w-full text-sm">
+            <thead className="border-b-2 border-line text-left font-mono text-xs uppercase tracking-wide text-muted">
               <tr>
-                <th className="px-3 py-2 font-medium">Organisation</th>
-                <th className="px-3 py-2 font-medium">Status</th>
-                <th className="px-3 py-2 font-medium text-right">Members</th>
-                <th className="px-3 py-2 font-medium text-right">{countLabel}</th>
-                <th className="px-3 py-2 font-medium text-right">Raised</th>
-                <th className="px-3 py-2 font-medium">Joined</th>
-                <th className="px-3 py-2" />
+                <th className="px-4 py-3 font-medium">Organisation</th>
+                <th className="px-4 py-3 font-medium">Status</th>
+                <th className="px-4 py-3 text-right font-medium">Members</th>
+                <th className="px-4 py-3 text-right font-medium">{countLabel}</th>
+                <th className="px-4 py-3 text-right font-medium">Raised</th>
+                <th className="px-4 py-3 font-medium">Joined</th>
+                <th className="px-4 py-3" />
               </tr>
             </thead>
             <tbody>
-              {visible.map((r) => (
-                <tr key={r.id} className="border-t border-gray-200">
-                  <td className="px-3 py-2">
-                    <span className="font-medium text-gray-900">{r.name}</span>
+              {visible.map((r, i) => (
+                <motion.tr
+                  key={r.id}
+                  initial={{ opacity: 0 }}
+                  whileInView={{ opacity: 1 }}
+                  viewport={{ once: true }}
+                  transition={{ duration: 0.25, delay: Math.min(i, 10) * 0.02 }}
+                  className="border-t border-line"
+                >
+                  <td className="px-4 py-3">
+                    <span className="font-medium text-navy">{r.name}</span>
                     {r.verification_reason && (
-                      <p className="text-xs text-gray-500 mt-0.5">{r.verification_reason}</p>
+                      <p className="mt-0.5 text-xs text-muted">{r.verification_reason}</p>
                     )}
                   </td>
-                  <td className="px-3 py-2">
+                  <td className="px-4 py-3">
                     <VerificationBadge status={r.verification_status} />
                   </td>
-                  <td className="px-3 py-2 text-right">{r.member_count}</td>
-                  <td className="px-3 py-2 text-right">
+                  <td className="px-4 py-3 text-right text-ink">{r.member_count}</td>
+                  <td className="px-4 py-3 text-right text-ink">
                     {orgType === 'NGO' ? r.project_count : r.campaign_count}
                   </td>
-                  <td className="px-3 py-2 text-right">{rupees(r.total_raised_minor)}</td>
-                  <td className="px-3 py-2 text-gray-600">
+                  <td className="px-4 py-3 text-right text-ink">{rupees(r.total_raised_minor)}</td>
+                  <td className="px-4 py-3 text-muted">
                     {new Date(r.created_at).toLocaleDateString()}
                   </td>
-                  <td className="px-3 py-2 text-right">
+                  <td className="px-4 py-3 text-right">
                     <Link
                       href={`/conversations/new?org_id=${r.id}`}
-                      className="text-blue-600 hover:underline"
+                      className="font-medium text-teal hover:underline"
                     >
                       Message
                     </Link>
                   </td>
-                </tr>
+                </motion.tr>
               ))}
             </tbody>
           </table>
-        </div>
+        </Card>
       )}
     </div>
   );

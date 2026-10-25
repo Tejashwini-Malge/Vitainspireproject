@@ -18,7 +18,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
   return (
     <html lang="en" className={`${display.variable} ${body.variable} ${mono.variable}`}>
       <body className="min-h-screen font-sans antialiased">
-        <header className="border-b-2 border-navy bg-paper">
+        <header className="sticky top-0 z-40 border-b-2 border-navy bg-paper/90 backdrop-blur-sm">
           <nav className="mx-auto flex max-w-5xl flex-wrap items-center justify-between gap-x-6 gap-y-3 px-4 py-5" aria-label="Primary">
             <Link href="/" className="font-display text-xl font-semibold tracking-tight text-navy">
               Imparency<span className="text-teal">.</span>

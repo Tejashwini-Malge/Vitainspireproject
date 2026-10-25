@@ -4,12 +4,13 @@ import { useState, useEffect, Suspense } from 'react';
 import { useSearchParams } from 'next/navigation';
 import Link from 'next/link';
 import { api } from '@/lib/api';
+import { Card } from '@/components/ui/card';
 
 // useSearchParams forces client rendering, so the page must present a Suspense
 // boundary or the static export of this route fails at build time.
 export default function UnsubscribePage() {
   return (
-    <Suspense fallback={<p className="p-8 text-center text-gray-500">Loading…</p>}>
+    <Suspense fallback={<p className="p-8 text-center text-muted">Loading…</p>}>
       <UnsubscribeContent />
     </Suspense>
   );
@@ -47,8 +48,8 @@ function UnsubscribeContent() {
   };
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-gray-50 px-4">
-      <div className="max-w-md w-full bg-white rounded-lg shadow-md p-8 text-center">
+    <div className="flex min-h-screen items-center justify-center bg-paper px-4">
+      <Card className="w-full max-w-md p-8 text-center">
         {status === 'loading' && (
           <div className="space-y-4">
             <div className="inline-block animate-spin">
@@ -63,34 +64,28 @@ function UnsubscribeContent() {
 
         {status === 'success' && (
           <div className="space-y-4">
-            <div className="text-5xl mb-4">✓</div>
-            <h1 className="text-2xl font-bold text-navy">Unsubscribed</h1>
+            <div className="text-5xl text-status-approved mb-4">✓</div>
+            <h1 className="text-2xl font-semibold text-navy">Unsubscribed</h1>
             <p className="text-muted">
               You've been unsubscribed from marketing emails. You'll no longer receive promotional content from Imparency.
             </p>
-            <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 text-left text-sm text-blue-900">
-              <p className="font-medium mb-2">What changes:</p>
+            <div className="rounded-sm border border-line bg-navy/5 p-4 text-left text-sm text-ink">
+              <p className="font-medium text-navy mb-2">What changes:</p>
               <ul className="space-y-1">
-                <li>✓ No more marketing emails</li>
-                <li>✓ No campaign announcements</li>
-                <li>✓ No feature updates</li>
-                <li>✓ Important notifications still sent</li>
+                <li>No more marketing emails</li>
+                <li>No campaign announcements</li>
+                <li>No feature updates</li>
+                <li>Important notifications still sent</li>
               </ul>
             </div>
             <p className="text-xs text-muted">
               You can manage all your preferences anytime by signing in and visiting your email settings.
             </p>
             <div className="flex gap-3 pt-4">
-              <Link
-                href="/"
-                className="flex-1 rounded-sm bg-navy px-4 py-2 font-medium text-paper hover:opacity-90"
-              >
+              <Link href="/" className="flex-1 rounded-sm bg-teal px-5 py-2.5 text-center font-display text-sm font-medium text-paper hover:opacity-90">
                 Back to Home
               </Link>
-              <Link
-                href="/login"
-                className="flex-1 rounded-sm border-2 border-navy px-4 py-2 font-medium text-navy hover:bg-navy hover:text-paper"
-              >
+              <Link href="/login" className="flex-1 rounded-sm border-2 border-navy px-5 py-2.5 text-center font-display text-sm font-medium text-navy hover:bg-navy hover:text-paper">
                 Sign In
               </Link>
             </div>
@@ -99,40 +94,34 @@ function UnsubscribeContent() {
 
         {status === 'error' && (
           <div className="space-y-4">
-            <div className="text-5xl mb-4">⚠️</div>
-            <h1 className="text-2xl font-bold text-navy">Unsubscribe Failed</h1>
-            <p className="text-red-600 font-medium">{error}</p>
+            <div className="text-5xl text-status-rejected mb-4">!</div>
+            <h1 className="text-2xl font-semibold text-navy">Unsubscribe Failed</h1>
+            <p className="text-status-rejected font-medium">{error}</p>
             <p className="text-muted text-sm">
               The unsubscribe link may have expired or been invalid. Please try one of the following:
             </p>
-            <div className="bg-amber-50 border border-amber-200 rounded-lg p-4 text-left text-sm text-amber-900 space-y-2">
+            <div className="rounded-sm border border-status-pending/30 bg-status-pending/5 p-4 text-left text-sm text-ink space-y-2">
               <p>
-                <strong>Option 1:</strong> Sign in to your account and manage preferences in your email settings
+                <strong className="text-navy">Option 1:</strong> Sign in to your account and manage preferences in your email settings
               </p>
               <p>
-                <strong>Option 2:</strong> Reply to any Imparency email asking to unsubscribe
+                <strong className="text-navy">Option 2:</strong> Reply to any Imparency email asking to unsubscribe
               </p>
               <p>
-                <strong>Option 3:</strong> Contact us at support@imparency.org
+                <strong className="text-navy">Option 3:</strong> Contact us at support@imparency.org
               </p>
             </div>
             <div className="flex gap-3 pt-4">
-              <Link
-                href="/"
-                className="flex-1 rounded-sm bg-navy px-4 py-2 font-medium text-paper hover:opacity-90"
-              >
+              <Link href="/" className="flex-1 rounded-sm bg-teal px-5 py-2.5 text-center font-display text-sm font-medium text-paper hover:opacity-90">
                 Back to Home
               </Link>
-              <Link
-                href="/login"
-                className="flex-1 rounded-sm border-2 border-navy px-4 py-2 font-medium text-navy hover:bg-navy hover:text-paper"
-              >
+              <Link href="/login" className="flex-1 rounded-sm border-2 border-navy px-5 py-2.5 text-center font-display text-sm font-medium text-navy hover:bg-navy hover:text-paper">
                 Sign In
               </Link>
             </div>
           </div>
         )}
-      </div>
+      </Card>
     </div>
   );
 }

@@ -4,6 +4,10 @@ import { useState, useEffect } from 'react';
 import { useRouter, useParams } from 'next/navigation';
 import { api } from '@/lib/api';
 import Link from 'next/link';
+import { PageHeader } from '@/components/ui/page-header';
+import { Card } from '@/components/ui/card';
+import { Button } from '@/components/ui/button';
+import { Badge } from '@/components/ui/badge';
 
 interface Opportunity {
   id: string;
@@ -45,137 +49,118 @@ export default function OpportunityDetailPage() {
   }, [params.id]);
 
   if (loading) {
-    return <div className="max-w-2xl mx-auto p-8">Loading...</div>;
+    return <p className="text-muted">Loading…</p>;
   }
 
   if (error) {
     return (
-      <div className="max-w-2xl mx-auto p-8">
-        <div className="bg-red-100 text-red-700 p-4 rounded mb-4">{error}</div>
-        <button onClick={() => router.back()} className="text-blue-600 underline">
+      <div className="space-y-4">
+        <p role="alert" className="rounded-sm border border-status-rejected/40 bg-status-rejected/10 px-4 py-3 text-sm text-status-rejected">
+          {error}
+        </p>
+        <Button variant="ghost" size="sm" onClick={() => router.back()}>
           Go Back
-        </button>
+        </Button>
       </div>
     );
   }
 
   if (!opportunity) {
     return (
-      <div className="max-w-2xl mx-auto p-8">
-        <p>Opportunity not found</p>
-        <button onClick={() => router.back()} className="text-blue-600 underline">
+      <div className="space-y-4">
+        <p className="text-muted">Opportunity not found</p>
+        <Button variant="ghost" size="sm" onClick={() => router.back()}>
           Go Back
-        </button>
+        </Button>
       </div>
     );
   }
 
   return (
-    <div className="max-w-4xl mx-auto p-8">
-      <div className="mb-6">
-        <button onClick={() => router.back()} className="text-blue-600 underline mb-4">
+    <div className="space-y-8">
+      <div className="space-y-3">
+        <Button variant="ghost" size="sm" onClick={() => router.back()} className="-ml-3">
           ← Back
-        </button>
-        <h1 className="text-4xl font-bold mb-2">{opportunity.title}</h1>
-        <div className="flex gap-4 mb-4">
-          <span className={`px-3 py-1 rounded-full text-sm font-semibold ${
-            opportunity.status === 'PUBLISHED' ? 'bg-green-100 text-green-800' : 'bg-yellow-100 text-yellow-800'
-          }`}>
-            {opportunity.status}
-          </span>
-          <span className="text-gray-600">
-            Created {new Date(opportunity.created_at).toLocaleDateString()}
-          </span>
-        </div>
+        </Button>
+        <PageHeader
+          eyebrow="CSR workspace"
+          title={opportunity.title}
+          description={`Created ${new Date(opportunity.created_at).toLocaleDateString()}`}
+          action={<Badge tone={opportunity.status === 'PUBLISHED' ? 'approved' : 'pending'}>{opportunity.status}</Badge>}
+        />
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
-        <div className="bg-blue-50 p-4 rounded-lg">
-          <h3 className="font-semibold text-gray-700 mb-2">Budget Range</h3>
-          <p className="text-2xl font-bold text-blue-600">
+      <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
+        <Card className="p-4">
+          <h3 className="font-mono text-xs uppercase tracking-[0.18em] text-muted">Budget Range</h3>
+          <p className="mt-2 text-2xl font-semibold text-navy">
             ₹{(opportunity.budget_min / 100000).toFixed(1)}L - ₹{(opportunity.budget_max / 100000).toFixed(1)}L
           </p>
-        </div>
+        </Card>
 
-        <div className="bg-purple-50 p-4 rounded-lg">
-          <h3 className="font-semibold text-gray-700 mb-2">Deadline</h3>
-          <p className="text-2xl font-bold text-purple-600">
+        <Card className="p-4">
+          <h3 className="font-mono text-xs uppercase tracking-[0.18em] text-muted">Deadline</h3>
+          <p className="mt-2 text-2xl font-semibold text-navy">
             {new Date(opportunity.deadline).toLocaleDateString()}
           </p>
-        </div>
+        </Card>
 
-        <div className="bg-indigo-50 p-4 rounded-lg">
-          <h3 className="font-semibold text-gray-700 mb-2">Status</h3>
-          <p className="text-2xl font-bold text-indigo-600">
+        <Card className="p-4">
+          <h3 className="font-mono text-xs uppercase tracking-[0.18em] text-muted">Status</h3>
+          <p className="mt-2 text-2xl font-semibold text-navy">
             {opportunity.status === 'PUBLISHED' ? '✓ Live' : 'Draft'}
           </p>
-        </div>
+        </Card>
       </div>
 
-      <div className="bg-white rounded-lg border p-6 mb-8">
-        <h2 className="text-2xl font-bold mb-4">Description</h2>
-        <p className="text-gray-700 whitespace-pre-wrap">{opportunity.description}</p>
-      </div>
+      <Card className="p-6">
+        <h2 className="mb-3 text-lg font-semibold text-navy">Description</h2>
+        <p className="whitespace-pre-wrap text-ink">{opportunity.description}</p>
+      </Card>
 
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-8 mb-8">
-        <div className="bg-white rounded-lg border p-6">
-          <h2 className="text-xl font-bold mb-4">Sectors</h2>
+      <div className="grid grid-cols-1 gap-6 md:grid-cols-2">
+        <Card className="p-6">
+          <h2 className="mb-4 text-lg font-semibold text-navy">Sectors</h2>
           <div className="flex flex-wrap gap-2">
             {opportunity.sectors.map((sector) => (
-              <span key={sector} className="bg-blue-100 text-blue-800 px-3 py-1 rounded-full text-sm">
-                {sector}
-              </span>
+              <Badge key={sector} tone="neutral">{sector}</Badge>
             ))}
           </div>
-        </div>
+        </Card>
 
-        <div className="bg-white rounded-lg border p-6">
-          <h2 className="text-xl font-bold mb-4">Geographies</h2>
+        <Card className="p-6">
+          <h2 className="mb-4 text-lg font-semibold text-navy">Geographies</h2>
           <div className="flex flex-wrap gap-2">
             {opportunity.geographies.map((geo) => (
-              <span key={geo} className="bg-green-100 text-green-800 px-3 py-1 rounded-full text-sm">
-                {geo}
-              </span>
+              <Badge key={geo} tone="neutral">{geo}</Badge>
             ))}
           </div>
-        </div>
+        </Card>
       </div>
 
-      <div className="bg-white rounded-lg border p-6 mb-8">
-        <h2 className="text-2xl font-bold mb-4">Requirements</h2>
-        <p className="text-gray-700 whitespace-pre-wrap">{opportunity.requirements_text}</p>
-      </div>
+      <Card className="p-6">
+        <h2 className="mb-3 text-lg font-semibold text-navy">Requirements</h2>
+        <p className="whitespace-pre-wrap text-ink">{opportunity.requirements_text}</p>
+      </Card>
 
       {opportunity.status === 'DRAFT' && (
-        <div className="flex gap-4">
-          <Link
-            href={`/csr/opportunities/${opportunity.id}/publish`}
-            className="bg-green-600 text-white px-6 py-2 rounded-lg hover:bg-green-700"
-          >
-            Publish Opportunity
+        <div className="flex flex-wrap gap-4">
+          <Link href={`/csr/opportunities/${opportunity.id}/publish`}>
+            <Button variant="primary">Publish Opportunity</Button>
           </Link>
-          <Link
-            href={`/csr/opportunities/${opportunity.id}/shortlist`}
-            className="bg-purple-600 text-white px-6 py-2 rounded-lg hover:bg-purple-700"
-          >
-            Create Shortlist
+          <Link href={`/csr/opportunities/${opportunity.id}/shortlist`}>
+            <Button variant="secondary">Create Shortlist</Button>
           </Link>
         </div>
       )}
 
       {opportunity.status === 'PUBLISHED' && (
-        <div className="flex gap-4">
-          <Link
-            href={`/csr/opportunities/${opportunity.id}/shortlist`}
-            className="bg-purple-600 text-white px-6 py-2 rounded-lg hover:bg-purple-700"
-          >
-            Manage Shortlist
+        <div className="flex flex-wrap gap-4">
+          <Link href={`/csr/opportunities/${opportunity.id}/shortlist`}>
+            <Button variant="secondary">Manage Shortlist</Button>
           </Link>
-          <Link
-            href={`/dashboard/opportunities`}
-            className="bg-gray-600 text-white px-6 py-2 rounded-lg hover:bg-gray-700"
-          >
-            Back to Opportunities
+          <Link href={`/dashboard/opportunities`}>
+            <Button variant="ghost">Back to Opportunities</Button>
           </Link>
         </div>
       )}

@@ -3,6 +3,11 @@
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { api } from '@/lib/api';
+import { PageHeader } from '@/components/ui/page-header';
+import { Card } from '@/components/ui/card';
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { Textarea } from '@/components/ui/textarea';
 
 export default function CreateOpportunityPage() {
   const router = useRouter();
@@ -44,123 +49,113 @@ export default function CreateOpportunityPage() {
   };
 
   return (
-    <div className="max-w-2xl mx-auto p-8">
-      <h1 className="text-3xl font-bold mb-8">Create New Opportunity</h1>
+    <div className="mx-auto max-w-2xl space-y-8">
+      <PageHeader eyebrow="CSR workspace" title="Create New Opportunity" />
 
-      {error && <div className="bg-red-100 text-red-700 p-4 rounded mb-4">{error}</div>}
+      {error && (
+        <p role="alert" className="rounded-sm border border-status-rejected/40 bg-status-rejected/10 px-4 py-3 text-sm text-status-rejected">
+          {error}
+        </p>
+      )}
 
-      <form onSubmit={handleSubmit} className="space-y-6">
-        <div>
-          <label className="block font-semibold mb-2">Title</label>
-          <input
-            type="text"
-            value={formData.title}
-            onChange={e => setFormData({ ...formData, title: e.target.value })}
-            className="w-full border rounded px-4 py-2"
-            minLength={5}
-            required
-          />
-        </div>
-
-        <div>
-          <label className="block font-semibold mb-2">Description</label>
-          <textarea
-            value={formData.description}
-            onChange={e => setFormData({ ...formData, description: e.target.value })}
-            className="w-full border rounded px-4 py-2"
-            rows={4}
-            minLength={10}
-            required
-          />
-        </div>
-
-        <div className="grid grid-cols-2 gap-4">
+      <Card className="p-6">
+        <form onSubmit={handleSubmit} className="space-y-6">
           <div>
-            <label className="block font-semibold mb-2">Budget Min (₹)</label>
-            <input
-              type="number"
-              value={formData.budget_min}
-              onChange={e => setFormData({ ...formData, budget_min: e.target.value })}
-              className="w-full border rounded px-4 py-2"
+            <label className="mb-2 block font-medium text-navy">Title</label>
+            <Input
+              type="text"
+              value={formData.title}
+              onChange={e => setFormData({ ...formData, title: e.target.value })}
+              minLength={5}
               required
             />
           </div>
+
           <div>
-            <label className="block font-semibold mb-2">Budget Max (₹)</label>
-            <input
-              type="number"
-              value={formData.budget_max}
-              onChange={e => setFormData({ ...formData, budget_max: e.target.value })}
-              className="w-full border rounded px-4 py-2"
+            <label className="mb-2 block font-medium text-navy">Description</label>
+            <Textarea
+              value={formData.description}
+              onChange={e => setFormData({ ...formData, description: e.target.value })}
+              rows={4}
+              minLength={10}
               required
             />
           </div>
-        </div>
 
-        <div>
-          <label className="block font-semibold mb-2">Deadline</label>
-          <input
-            type="date"
-            value={formData.deadline}
-            onChange={e => setFormData({ ...formData, deadline: e.target.value })}
-            className="w-full border rounded px-4 py-2"
-            required
-          />
-        </div>
+          <div className="grid grid-cols-2 gap-4">
+            <div>
+              <label className="mb-2 block font-medium text-navy">Budget Min (₹)</label>
+              <Input
+                type="number"
+                value={formData.budget_min}
+                onChange={e => setFormData({ ...formData, budget_min: e.target.value })}
+                required
+              />
+            </div>
+            <div>
+              <label className="mb-2 block font-medium text-navy">Budget Max (₹)</label>
+              <Input
+                type="number"
+                value={formData.budget_max}
+                onChange={e => setFormData({ ...formData, budget_max: e.target.value })}
+                required
+              />
+            </div>
+          </div>
 
-        <div>
-          <label className="block font-semibold mb-2">Sectors (comma-separated)</label>
-          <input
-            type="text"
-            value={formData.sectors.join(', ')}
-            onChange={e => setFormData({ ...formData, sectors: e.target.value.split(',').map(s => s.trim()) })}
-            className="w-full border rounded px-4 py-2"
-            placeholder="health, education, water"
-            required
-          />
-        </div>
+          <div>
+            <label className="mb-2 block font-medium text-navy">Deadline</label>
+            <Input
+              type="date"
+              value={formData.deadline}
+              onChange={e => setFormData({ ...formData, deadline: e.target.value })}
+              required
+            />
+          </div>
 
-        <div>
-          <label className="block font-semibold mb-2">Geographies (comma-separated)</label>
-          <input
-            type="text"
-            value={formData.geographies.join(', ')}
-            onChange={e => setFormData({ ...formData, geographies: e.target.value.split(',').map(g => g.trim()) })}
-            className="w-full border rounded px-4 py-2"
-            placeholder="Karnataka, Tamil Nadu"
-            required
-          />
-        </div>
+          <div>
+            <label className="mb-2 block font-medium text-navy">Sectors (comma-separated)</label>
+            <Input
+              type="text"
+              value={formData.sectors.join(', ')}
+              onChange={e => setFormData({ ...formData, sectors: e.target.value.split(',').map(s => s.trim()) })}
+              placeholder="health, education, water"
+              required
+            />
+          </div>
 
-        <div>
-          <label className="block font-semibold mb-2">Requirements</label>
-          <textarea
-            value={formData.requirements_text}
-            onChange={e => setFormData({ ...formData, requirements_text: e.target.value })}
-            className="w-full border rounded px-4 py-2"
-            rows={3}
-            minLength={10}
-            required
-          />
-        </div>
+          <div>
+            <label className="mb-2 block font-medium text-navy">Geographies (comma-separated)</label>
+            <Input
+              type="text"
+              value={formData.geographies.join(', ')}
+              onChange={e => setFormData({ ...formData, geographies: e.target.value.split(',').map(g => g.trim()) })}
+              placeholder="Karnataka, Tamil Nadu"
+              required
+            />
+          </div>
 
-        <div className="flex gap-4">
-          <button
-            type="submit"
-            disabled={loading}
-            className="bg-blue-600 text-white px-6 py-2 rounded-lg hover:bg-blue-700 disabled:opacity-50"
-          >
-            {loading ? 'Creating...' : 'Create Opportunity'}
-          </button>
-          <button
-            type="button"
-            onClick={() => router.back()}
-            className="bg-gray-300 text-gray-700 px-6 py-2 rounded-lg hover:bg-gray-400"
-          >
-            Cancel
-          </button>
-        </div>
-      </form>
+          <div>
+            <label className="mb-2 block font-medium text-navy">Requirements</label>
+            <Textarea
+              value={formData.requirements_text}
+              onChange={e => setFormData({ ...formData, requirements_text: e.target.value })}
+              rows={3}
+              minLength={10}
+              required
+            />
+          </div>
+
+          <div className="flex gap-4 border-t border-line pt-6">
+            <Button type="submit" variant="primary" disabled={loading}>
+              {loading ? 'Creating...' : 'Create Opportunity'}
+            </Button>
+            <Button type="button" variant="secondary" onClick={() => router.back()}>
+              Cancel
+            </Button>
+          </div>
+        </form>
+      </Card>
     </div>
   );
 }

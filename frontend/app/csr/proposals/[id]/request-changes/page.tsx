@@ -3,6 +3,10 @@
 import { useRouter, useParams } from 'next/navigation';
 import { useState } from 'react';
 import { api } from '@/lib/api';
+import { PageHeader } from '@/components/ui/page-header';
+import { Card } from '@/components/ui/card';
+import { Button } from '@/components/ui/button';
+import { Textarea } from '@/components/ui/textarea';
 
 export default function RequestChangesPage() {
   const router = useRouter();
@@ -35,41 +39,38 @@ export default function RequestChangesPage() {
   };
 
   return (
-    <div className="max-w-2xl mx-auto p-8">
-      <h1 className="text-3xl font-bold mb-8">Request Changes</h1>
+    <div className="mx-auto max-w-2xl space-y-8">
+      <PageHeader eyebrow="CSR workspace" title="Request Changes" />
 
-      {error && <div className="bg-red-100 text-red-700 p-4 rounded mb-4">{error}</div>}
+      {error && (
+        <p role="alert" className="rounded-sm border border-status-rejected/40 bg-status-rejected/10 px-4 py-3 text-sm text-status-rejected">
+          {error}
+        </p>
+      )}
 
-      <form onSubmit={handleSubmit} className="space-y-6">
-        <div>
-          <label className="block font-semibold mb-2">Feedback for NGO</label>
-          <textarea
-            value={feedback}
-            onChange={e => setFeedback(e.target.value)}
-            className="w-full border rounded px-4 py-2"
-            rows={6}
-            placeholder="Please describe what changes are needed..."
-            required
-          />
-        </div>
+      <Card className="p-6">
+        <form onSubmit={handleSubmit} className="space-y-6">
+          <div>
+            <label className="mb-2 block font-medium text-navy">Feedback for NGO</label>
+            <Textarea
+              value={feedback}
+              onChange={e => setFeedback(e.target.value)}
+              rows={6}
+              placeholder="Please describe what changes are needed..."
+              required
+            />
+          </div>
 
-        <div className="flex gap-4">
-          <button
-            type="submit"
-            disabled={loading}
-            className="bg-orange-600 text-white px-6 py-2 rounded-lg hover:bg-orange-700 disabled:opacity-50"
-          >
-            {loading ? 'Sending...' : 'Send Request'}
-          </button>
-          <button
-            type="button"
-            onClick={() => router.back()}
-            className="bg-gray-300 text-gray-700 px-6 py-2 rounded-lg hover:bg-gray-400"
-          >
-            Cancel
-          </button>
-        </div>
-      </form>
+          <div className="flex gap-4 border-t border-line pt-6">
+            <Button type="submit" variant="danger" disabled={loading}>
+              {loading ? 'Sending...' : 'Send Request'}
+            </Button>
+            <Button type="button" variant="secondary" onClick={() => router.back()}>
+              Cancel
+            </Button>
+          </div>
+        </form>
+      </Card>
     </div>
   );
 }

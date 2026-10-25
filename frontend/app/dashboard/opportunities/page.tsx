@@ -4,6 +4,10 @@ import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { api, getToken } from '@/lib/api';
+import { PageHeader } from '@/components/ui/page-header';
+import { Card } from '@/components/ui/card';
+import { Badge, type BadgeTone } from '@/components/ui/badge';
+import { EmptyState } from '@/components/ui/empty-state';
 
 interface Opportunity {
   id: string;
@@ -17,6 +21,11 @@ interface Opportunity {
   deadline: string;
   created_at: string;
 }
+
+const STATUS_TONE: Record<string, BadgeTone> = {
+  PUBLISHED: 'approved',
+  DRAFT: 'pending',
+};
 
 export default function OpportunitiesPage() {
   const router = useRouter();
@@ -35,66 +44,78 @@ export default function OpportunitiesPage() {
       .finally(() => setLoading(false));
   }, [router]);
 
-  if (loading) return <div className="p-4">Loading...</div>;
+  if (loading) return <p className="text-muted">Loading opportunities…</p>;
 
   return (
-    <div className="p-6">
-      <div className="flex justify-between items-center mb-6">
-        <h1 className="text-3xl font-bold">My Opportunities</h1>
-        <Link href="/dashboard/opportunities/create" className="bg-blue-600 text-white px-4 py-2 rounded">
-          Create Opportunity
-        </Link>
-      </div>
+    <div className="space-y-8">
+      <PageHeader
+        eyebrow="CSR"
+        title="My Opportunities"
+        action={
+          <Link
+            href="/csr/opportunities/create"
+            className="inline-flex items-center justify-center gap-2 rounded-sm bg-teal px-5 py-2.5 font-display text-sm font-medium text-paper shadow-sm transition-all hover:opacity-90 hover:shadow-md"
+          >
+            Create Opportunity
+          </Link>
+        }
+      />
 
-      {error && <div className="bg-red-100 text-red-700 p-4 rounded mb-4">{error}</div>}
+      {error && (
+        <div role="alert" className="rounded-sm border-2 border-status-rejected bg-white p-4 text-sm text-status-rejected">
+          {error}
+        </div>
+      )}
 
       {opportunities.length === 0 ? (
-        <div className="text-gray-500">No opportunities yet</div>
+        <EmptyState title="No opportunities yet" description="Create an opportunity so NGOs can submit proposals against it." />
       ) : (
         <div className="grid gap-4">
           {opportunities.map(opp => (
-            <div key={opp.id} className="border rounded-lg p-4 hover:shadow-lg transition">
-              <div className="flex justify-between items-start mb-2">
-                <h3 className="text-xl font-semibold">{opp.title}</h3>
-                <span className={`px-3 py-1 rounded text-sm font-medium ${
-                  opp.status === 'PUBLISHED' ? 'bg-green-100 text-green-800' : 'bg-yellow-100 text-yellow-800'
-                }`}>
-                  {opp.status}
-                </span>
+            <Card key={opp.id} interactive className="p-6">
+              <div className="mb-2 flex items-start justify-between gap-4">
+                <h3 className="font-display text-xl font-semibold text-navy">{opp.title}</h3>
+                <Badge tone={STATUS_TONE[opp.status] ?? 'neutral'}>{opp.status}</Badge>
               </div>
-              <p className="text-gray-600 mb-3">{opp.description}</p>
+              <p className="mb-3 text-sm text-muted">{opp.description}</p>
 
-              <div className="grid grid-cols-2 gap-4 mb-4 text-sm">
+              <div className="mb-4 grid grid-cols-2 gap-4 text-sm">
                 <div>
-                  <span className="font-semibold">Budget:</span> ${(opp.budget_min/100000).toFixed(1)}M - ${(opp.budget_max/100000).toFixed(1)}M
+                  <span className="font-semibold text-navy">Budget:</span>{' '}
+                  <span className="text-ink">
+                    ${(opp.budget_min / 100000).toFixed(1)}M - ${(opp.budget_max / 100000).toFixed(1)}M
+                  </span>
                 </div>
                 <div>
-                  <span className="font-semibold">Deadline:</span> {new Date(opp.deadline).toLocaleDateString()}
+                  <span className="font-semibold text-navy">Deadline:</span>{' '}
+                  <span className="text-ink">{new Date(opp.deadline).toLocaleDateString()}</span>
                 </div>
                 <div className="col-span-2">
-                  <span className="font-semibold">Sectors:</span> {opp.sectors.join(', ')}
+                  <span className="font-semibold text-navy">Sectors:</span>{' '}
+                  <span className="text-ink">{opp.sectors.join(', ')}</span>
                 </div>
                 <div className="col-span-2">
-                  <span className="font-semibold">Geographies:</span> {opp.geographies.join(', ')}
+                  <span className="font-semibold text-navy">Geographies:</span>{' '}
+                  <span className="text-ink">{opp.geographies.join(', ')}</span>
                 </div>
               </div>
 
-              <div className="flex gap-2">
-                <Link href={`/dashboard/opportunities/${opp.id}`} className="text-blue-600 hover:underline">
+              <div className="flex gap-4 text-sm font-medium">
+                <Link href={`/csr/opportunities/${opp.id}`} className="text-teal hover:underline">
                   View
                 </Link>
                 {opp.status === 'DRAFT' && (
-                  <Link href={`/dashboard/opportunities/${opp.id}/publish`} className="text-green-600 hover:underline">
+                  <Link href={`/csr/opportunities/${opp.id}/publish`} className="text-status-approved hover:underline">
                     Publish
                   </Link>
                 )}
                 {opp.status === 'PUBLISHED' && (
-                  <Link href={`/dashboard/opportunities/${opp.id}/shortlist`} className="text-purple-600 hover:underline">
+                  <Link href={`/csr/opportunities/${opp.id}/shortlist`} className="text-navy hover:underline">
                     Create Shortlist
                   </Link>
                 )}
               </div>
-            </div>
+            </Card>
           ))}
         </div>
       )}

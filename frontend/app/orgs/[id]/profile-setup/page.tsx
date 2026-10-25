@@ -2,6 +2,10 @@
 
 import { useParams, useRouter } from "next/navigation";
 import { FormEvent, useState } from "react";
+import { Button } from "@/components/ui/button";
+import { Card } from "@/components/ui/card";
+import { Input } from "@/components/ui/input";
+import { Textarea } from "@/components/ui/textarea";
 import { api, ApiError } from "@/lib/api";
 
 const SECTORS = [
@@ -74,7 +78,12 @@ export default function ProfileSetupPage() {
   const [extractedData, setExtractedData] = useState<any>(null);
 
   const primarySector = sectors[0] || "Default";
-  const templates = TEMPLATES[primarySector] || TEMPLATES.Default;
+  const extractedMissionOptions: string[] = extractedData?.mission_statements?.length
+    ? extractedData.mission_statements
+    : [];
+  const templates = extractedMissionOptions.length > 0
+    ? extractedMissionOptions
+    : (TEMPLATES[primarySector] || TEMPLATES.Default);
 
   function selectTemplate(template: string) {
     setSelectedTemplate(template);
@@ -104,6 +113,19 @@ export default function ProfileSetupPage() {
       if (response.mission) setMission(response.mission);
       if (response.about) setAbout(response.about);
       if (response.founded_year) setFoundedYear(response.founded_year);
+      if (response.sectors && response.sectors.length > 0) {
+        setSectors((prev) => Array.from(new Set([...prev, ...response.sectors])));
+      }
+
+      // Pre-select a mission so the NGO doesn't have to pick a generic template:
+      // prefer the dedicated "mission" section, falling back to the first
+      // mission-shaped sentence found on the page.
+      if (response.mission) {
+        setSelectedTemplate(response.mission);
+      } else if (response.mission_statements && response.mission_statements.length > 0) {
+        setMission(response.mission_statements[0]);
+        setSelectedTemplate(response.mission_statements[0]);
+      }
 
       // Show success message
       setError(null);
@@ -167,7 +189,8 @@ export default function ProfileSetupPage() {
     <div className="mx-auto max-w-2xl space-y-8">
       {/* Header */}
       <div className="space-y-2">
-        <h1 className="text-3xl font-semibold text-navy">Set up your profile</h1>
+        <p className="font-mono text-xs uppercase tracking-[0.18em] text-muted">Organization setup</p>
+        <h1 className="text-3xl font-semibold tracking-tight text-navy">Set up your profile</h1>
         <p className="text-muted">
           {step === "template"
             ? "Choose a mission statement template or create your own."
@@ -181,33 +204,33 @@ export default function ProfileSetupPage() {
       {step === "template" && (
         <form onSubmit={(e) => { e.preventDefault(); }} className="space-y-8">
           {/* Website URL (optional) */}
-          <div className="space-y-2 rounded-sm border-2 border-teal/30 bg-teal/5 p-4">
+          <Card className="space-y-2 border-teal/30 bg-teal/5 p-4">
             <label className="block">
               <span className="text-sm font-medium">Website (optional)</span>
               <p className="text-xs text-muted mt-1">We'll extract founding year, mission, vision, and about information</p>
               <div className="mt-2 flex gap-2">
-                <input
+                <Input
                   type="url"
                   value={website}
                   onChange={(e) => setWebsite(e.target.value)}
                   placeholder="https://yourngodomain.org"
-                  className="flex-1 rounded-sm border-2 border-line bg-white px-3 py-2"
+                  className="flex-1"
                 />
-                <button
+                <Button
                   type="button"
                   onClick={extractWebsite}
                   disabled={extractingWebsite || !website}
-                  className="rounded-sm bg-teal px-4 py-2 text-sm font-medium text-paper disabled:opacity-60"
+                  size="md"
                 >
-                  {extractingWebsite ? "🔍 Extracting..." : "🔍 Extract"}
-                </button>
+                  {extractingWebsite ? "Extracting…" : "Extract"}
+                </Button>
               </div>
             </label>
 
             {/* Show extracted data preview */}
             {extractedData && (
-              <div className="mt-4 rounded-sm border-2 border-teal bg-white p-3 space-y-2">
-                <p className="text-xs font-medium text-navy">✓ Extracted from website:</p>
+              <Card className="mt-4 border-teal p-3 space-y-2">
+                <p className="text-xs font-medium text-navy">Extracted from website:</p>
                 {extractedData.title && (
                   <p className="text-xs"><strong>Title:</strong> {extractedData.title}</p>
                 )}
@@ -227,27 +250,25 @@ export default function ProfileSetupPage() {
                   <p className="text-xs"><strong>About:</strong> {extractedData.about.substring(0, 100)}...</p>
                 )}
                 {extractedData.mission_statements && extractedData.mission_statements.length > 0 && (
-                  <div className="mt-2 border-t pt-2">
-                    <p className="text-xs font-medium text-navy mb-1">💡 Found mission statements:</p>
-                    <div className="space-y-1">
-                      {extractedData.mission_statements.map((stmt: string, idx: number) => (
-                        <p key={idx} className="text-xs bg-yellow-50 p-2 rounded text-navy cursor-pointer hover:bg-yellow-100" onClick={() => setMission(stmt)}>
-                          {stmt}
-                        </p>
-                      ))}
-                    </div>
-                  </div>
+                  <p className="text-xs text-teal mt-2 border-t border-line pt-2">
+                    Found {extractedData.mission_statements.length} mission statement(s) — pick one below.
+                  </p>
                 )}
-              </div>
+              </Card>
             )}
-          </div>
+          </Card>
 
           {/* Sectors */}
           <div className="space-y-3">
             <label className="text-sm font-medium">What sectors does your NGO work in?</label>
+            {extractedData?.sectors?.length > 0 && (
+              <p className="text-xs text-teal">
+                Pre-selected from your website — adjust if needed.
+              </p>
+            )}
             <div className="grid grid-cols-2 gap-2">
               {SECTORS.map((sector) => (
-                <label key={sector} className="flex items-center gap-2 rounded-sm border-2 border-line p-3 hover:bg-navy/5">
+                <label key={sector} className="flex items-center gap-2 rounded-sm border border-line p-3 hover:bg-navy/5">
                   <input
                     type="checkbox"
                     checked={sectors.includes(sector)}
@@ -267,30 +288,44 @@ export default function ProfileSetupPage() {
           </div>
 
           {/* Templates */}
-          {sectors.length > 0 && (
+          {(sectors.length > 0 || extractedMissionOptions.length > 0) && (
             <div className="space-y-3">
               <label className="text-sm font-medium">Choose a mission statement template or write your own</label>
+              {extractedMissionOptions.length > 0 && (
+                <p className="text-xs text-teal">
+                  Found on your website — the best match is pre-selected, or pick another.
+                </p>
+              )}
               <div className="space-y-2">
-                {templates.map((template, idx) => (
-                  <button
-                    key={idx}
-                    type="button"
-                    onClick={() => selectTemplate(template)}
-                    className="w-full rounded-sm border-2 border-teal bg-teal/5 p-4 text-left hover:bg-teal hover:text-paper"
-                  >
-                    <p className="text-sm">{template}</p>
-                  </button>
-                ))}
-                <button
+                {templates.map((template, idx) => {
+                  const isSelected = template === selectedTemplate || template === mission;
+                  return (
+                    <button
+                      key={idx}
+                      type="button"
+                      onClick={() => selectTemplate(template)}
+                      className={`w-full rounded-sm border p-4 text-left transition-colors hover:bg-teal hover:text-paper ${
+                        isSelected ? "border-navy bg-teal/20 ring-2 ring-navy" : "border-teal bg-teal/5"
+                      }`}
+                    >
+                      <p className="text-sm">
+                        {isSelected && <span className="mr-1 font-semibold">✓</span>}
+                        {template}
+                      </p>
+                    </button>
+                  );
+                })}
+                <Button
                   type="button"
+                  variant="secondary"
                   onClick={() => {
                     setMission("");
                     setStep("edit");
                   }}
-                  className="w-full rounded-sm border-2 border-navy p-4 font-medium text-navy hover:bg-navy hover:text-paper"
+                  className="w-full"
                 >
                   + Write your own mission
-                </button>
+                </Button>
               </div>
             </div>
           )}
@@ -306,11 +341,11 @@ export default function ProfileSetupPage() {
           <div className="space-y-2">
             <label className="block">
               <span className="text-sm font-medium">Mission (1-2 sentences)</span>
-              <textarea
+              <Textarea
                 required
                 value={mission}
                 onChange={(e) => setMission(e.target.value)}
-                className="mt-1 w-full rounded-sm border-2 border-line bg-white px-3 py-2"
+                className="mt-1"
                 rows={2}
               />
             </label>
@@ -326,15 +361,15 @@ export default function ProfileSetupPage() {
                 disabled={generatingAbout}
                 className="text-sm font-medium text-teal hover:underline disabled:opacity-60"
               >
-                {generatingAbout ? "✨ Generating..." : "✨ Generate with AI"}
+                {generatingAbout ? "Generating…" : "Generate with AI"}
                 {website && <span className="text-xs text-navy ml-1">(using your website)</span>}
               </button>
             </div>
-            <textarea
+            <Textarea
               value={about}
               onChange={(e) => setAbout(e.target.value)}
               placeholder="Your organization's story and approach..."
-              className="mt-1 w-full rounded-sm border-2 border-line bg-white px-3 py-2"
+              className="mt-1"
               rows={3}
             />
             {website && <p className="text-xs text-muted">Website data will be used to generate a personalized about section</p>}
@@ -352,35 +387,36 @@ export default function ProfileSetupPage() {
           {error && <p className="text-sm text-status-rejected">{error}</p>}
 
           <div className="flex gap-3">
-            <button
+            <Button
               type="button"
+              variant="secondary"
               onClick={() => setStep("template")}
               disabled={saving}
-              className="flex-1 rounded-sm border-2 border-navy px-4 py-2 font-display font-medium text-navy hover:bg-navy hover:text-paper disabled:opacity-60"
+              className="flex-1"
             >
               Back
-            </button>
-            <button
+            </Button>
+            <Button
               type="submit"
               disabled={saving || !mission || !about}
-              className="flex-1 rounded-sm bg-teal px-4 py-2 font-display font-medium text-paper disabled:opacity-60"
+              className="flex-1"
             >
               {saving ? "Saving…" : "Save & Continue"}
-            </button>
+            </Button>
           </div>
         </form>
       )}
 
       {/* Step 3: Complete */}
       {step === "complete" && (
-        <div className="space-y-6 rounded-sm border-2 border-teal bg-teal/5 p-8 text-center">
-          <div className="text-5xl">✓</div>
+        <Card className="space-y-6 border-teal bg-teal/5 p-8 text-center">
+          <div className="text-5xl text-teal">✓</div>
           <div className="space-y-2">
             <h2 className="text-2xl font-semibold text-navy">Profile created!</h2>
             <p className="text-muted">Your profile has been saved. A reviewer will verify your information before it goes public.</p>
           </div>
           <p className="text-sm text-muted">Redirecting you to your organization dashboard...</p>
-        </div>
+        </Card>
       )}
     </div>
   );

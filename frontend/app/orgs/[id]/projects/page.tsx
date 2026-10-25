@@ -6,6 +6,12 @@ import { FormEvent, useCallback, useEffect, useState } from "react";
 import { Notice } from "@/components/Notice";
 import { OrgNav } from "@/components/OrgNav";
 import { VerificationBadge } from "@/components/VerificationBadge";
+import { Button } from "@/components/ui/button";
+import { Card } from "@/components/ui/card";
+import { EmptyState } from "@/components/ui/empty-state";
+import { Input } from "@/components/ui/input";
+import { PageHeader } from "@/components/ui/page-header";
+import { Textarea } from "@/components/ui/textarea";
 import { api, ApiError, clearToken, getToken } from "@/lib/api";
 import type { Me, Member, Org, Project, Role } from "@/lib/types";
 
@@ -126,13 +132,14 @@ export default function ProjectsPage() {
 
   return (
     <div className="space-y-8">
-      <header className="space-y-2">
-        <h1 className="text-2xl font-semibold text-navy">{org.name}</h1>
-        <p className="text-muted">
-          {org.org_type} · <VerificationBadge status={org.verification_status} />
-        </p>
+      <div className="space-y-3">
+        <PageHeader
+          eyebrow={org.org_type}
+          title={org.name}
+          description={<VerificationBadge status={org.verification_status} />}
+        />
         <OrgNav orgId={id} showNgoTabs={isNgo} />
-      </header>
+      </div>
 
       {!isNgo ? (
         <p className="text-muted">Projects are available for NGO organizations.</p>
@@ -147,76 +154,75 @@ export default function ProjectsPage() {
               project is never required -- an NGO with no projects can still be found and donated to directly.
             </p>
             {projects.length === 0 ? (
-              <p className="text-muted">No projects yet.</p>
+              <EmptyState title="No projects yet" />
             ) : (
               <ul className="space-y-6">
                 {projects.map((p) => (
-                  <li key={p.id} className="space-y-3 rounded-sm border-2 border-line bg-white p-5">
-                    <div className="flex flex-wrap items-center justify-between gap-2">
-                      <div>
-                        <p className="font-medium text-navy">{p.title}</p>
-                        <p className="text-sm text-muted">{p.summary}</p>
-                      </div>
-                      <span
-                        className={`text-sm font-medium ${
-                          p.status === "PUBLISHED"
-                            ? "text-status-approved"
+                  <li key={p.id}>
+                    <Card className="space-y-3 p-5">
+                      <div className="flex flex-wrap items-center justify-between gap-2">
+                        <div>
+                          <p className="font-medium text-navy">{p.title}</p>
+                          <p className="text-sm text-muted">{p.summary}</p>
+                        </div>
+                        <span
+                          className={`text-sm font-medium ${
+                            p.status === "PUBLISHED"
+                              ? "text-status-approved"
+                              : p.status === "PENDING_REVIEW"
+                                ? "text-status-pending"
+                                : p.status === "CHANGES_REQUESTED"
+                                  ? "text-status-rejected"
+                                  : "text-muted"
+                          }`}
+                        >
+                          {p.status === "PUBLISHED"
+                            ? "Published"
                             : p.status === "PENDING_REVIEW"
-                              ? "text-status-pending"
+                              ? "Awaiting Imparency review"
                               : p.status === "CHANGES_REQUESTED"
-                                ? "text-status-rejected"
-                                : "text-muted"
-                        }`}
-                      >
-                        {p.status === "PUBLISHED"
-                          ? "Published"
-                          : p.status === "PENDING_REVIEW"
-                            ? "Awaiting Imparency review"
-                            : p.status === "CHANGES_REQUESTED"
-                              ? "Changes requested"
-                              : "Draft"}
-                      </span>
-                    </div>
-                    {p.status === "CHANGES_REQUESTED" && p.review_feedback && (
-                      <blockquote className="border-l-2 border-line pl-3 text-sm">
-                        <span className="font-medium">Reviewer&apos;s note:</span> {p.review_feedback}
-                      </blockquote>
-                    )}
-                    {canManage && (
-                      <div className="flex gap-3">
-                        {p.status === "PUBLISHED" ? (
-                          <button type="button" disabled={busyId === p.id} onClick={() => onUnpublish(p)}
-                            className="rounded-sm border-2 border-navy px-4 py-2 text-sm font-display font-medium text-navy disabled:opacity-60">
-                            Take offline
-                          </button>
-                        ) : p.status === "PENDING_REVIEW" ? (
-                          <button type="button" disabled={busyId === p.id} onClick={() => onUnpublish(p)}
-                            className="rounded-sm border-2 border-navy px-4 py-2 text-sm font-display font-medium text-navy disabled:opacity-60">
-                            Withdraw submission
-                          </button>
-                        ) : (
-                          <button type="button" disabled={busyId === p.id} onClick={() => onSubmitForReview(p)}
-                            className="rounded-sm bg-teal px-4 py-2 text-sm font-display font-medium text-paper disabled:opacity-60">
-                            Submit for review
-                          </button>
-                        )}
+                                ? "Changes requested"
+                                : "Draft"}
+                        </span>
                       </div>
-                    )}
-                    {rowBlockers[p.id]?.length > 0 && (
-                      <div role="alert" className="rounded-sm border-2 border-status-rejected bg-white p-3 text-sm text-status-rejected">
-                        <p className="font-medium">This project cannot be submitted for review yet:</p>
-                        <ul className="mt-1 list-disc space-y-1 pl-5">
-                          {rowBlockers[p.id].map((b) => (
-                            <li key={b}>{b}</li>
-                          ))}
-                        </ul>
-                      </div>
-                    )}
-                    {rowError[p.id] && (
-                      <p role="alert" className="text-sm text-status-rejected">
-                        {rowError[p.id]}
-                      </p>
-                    )}
+                      {p.status === "CHANGES_REQUESTED" && p.review_feedback && (
+                        <blockquote className="border-l-2 border-line pl-3 text-sm">
+                          <span className="font-medium">Reviewer&apos;s note:</span> {p.review_feedback}
+                        </blockquote>
+                      )}
+                      {canManage && (
+                        <div className="flex gap-3">
+                          {p.status === "PUBLISHED" ? (
+                            <Button type="button" variant="secondary" size="sm" disabled={busyId === p.id} onClick={() => onUnpublish(p)}>
+                              Take offline
+                            </Button>
+                          ) : p.status === "PENDING_REVIEW" ? (
+                            <Button type="button" variant="secondary" size="sm" disabled={busyId === p.id} onClick={() => onUnpublish(p)}>
+                              Withdraw submission
+                            </Button>
+                          ) : (
+                            <Button type="button" size="sm" disabled={busyId === p.id} onClick={() => onSubmitForReview(p)}>
+                              Submit for review
+                            </Button>
+                          )}
+                        </div>
+                      )}
+                      {rowBlockers[p.id]?.length > 0 && (
+                        <div role="alert" className="rounded-sm border border-status-rejected/40 bg-status-rejected/5 p-3 text-sm text-status-rejected">
+                          <p className="font-medium">This project cannot be submitted for review yet:</p>
+                          <ul className="mt-1 list-disc space-y-1 pl-5">
+                            {rowBlockers[p.id].map((b) => (
+                              <li key={b}>{b}</li>
+                            ))}
+                          </ul>
+                        </div>
+                      )}
+                      {rowError[p.id] && (
+                        <p role="alert" className="text-sm text-status-rejected">
+                          {rowError[p.id]}
+                        </p>
+                      )}
+                    </Card>
                   </li>
                 ))}
               </ul>
@@ -230,24 +236,23 @@ export default function ProjectsPage() {
               </h2>
               <label className="block">
                 <span className="text-sm font-medium">Title</span>
-                <input required maxLength={200} value={form.title} onChange={(e) => setForm((f) => ({ ...f, title: e.target.value }))}
-                  className="mt-1 w-full rounded-sm border-2 border-line bg-white px-3 py-2" />
+                <Input required maxLength={200} value={form.title} onChange={(e) => setForm((f) => ({ ...f, title: e.target.value }))}
+                  className="mt-1" />
               </label>
               <label className="block">
                 <span className="text-sm font-medium">Short summary (shown in the feed)</span>
-                <input required maxLength={500} value={form.summary} onChange={(e) => setForm((f) => ({ ...f, summary: e.target.value }))}
-                  className="mt-1 w-full rounded-sm border-2 border-line bg-white px-3 py-2" />
+                <Input required maxLength={500} value={form.summary} onChange={(e) => setForm((f) => ({ ...f, summary: e.target.value }))}
+                  className="mt-1" />
               </label>
               <label className="block">
                 <span className="text-sm font-medium">Description (optional)</span>
-                <textarea rows={4} maxLength={5000} value={form.description}
+                <Textarea rows={4} maxLength={5000} value={form.description}
                   onChange={(e) => setForm((f) => ({ ...f, description: e.target.value }))}
-                  className="mt-1 w-full rounded-sm border-2 border-line bg-white px-3 py-2" />
+                  className="mt-1" />
               </label>
-              <button type="submit" disabled={creating}
-                className="rounded-sm bg-navy px-4 py-2 font-display font-medium text-paper disabled:opacity-60">
+              <Button type="submit" variant="secondary" disabled={creating}>
                 {creating ? "Adding…" : "Add project (as draft)"}
-              </button>
+              </Button>
               {createError && <Notice kind="error">{createError}</Notice>}
             </form>
           ) : (

@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { MessageCircle, AtSign, Share2, Send, Mail } from "lucide-react";
 import { api } from "@/lib/api";
 import type { SocialShareOut } from "@/lib/types";
 
@@ -11,11 +12,11 @@ interface SocialShareButtonsProps {
 }
 
 const PLATFORMS = [
-  { id: "WHATSAPP", label: "WhatsApp", icon: "💬", color: "bg-green-500" },
-  { id: "TWITTER", label: "Twitter", icon: "𝕏", color: "bg-black" },
-  { id: "LINKEDIN", label: "LinkedIn", icon: "in", color: "bg-blue-600" },
-  { id: "FACEBOOK", label: "Facebook", icon: "f", color: "bg-blue-700" },
-  { id: "EMAIL", label: "Email", icon: "✉", color: "bg-gray-500" },
+  { id: "WHATSAPP", label: "WhatsApp", Icon: MessageCircle },
+  { id: "TWITTER", label: "Twitter", Icon: AtSign },
+  { id: "LINKEDIN", label: "LinkedIn", Icon: Share2 },
+  { id: "FACEBOOK", label: "Facebook", Icon: Send },
+  { id: "EMAIL", label: "Email", Icon: Mail },
 ];
 
 export function SocialShareButtons({
@@ -58,22 +59,22 @@ export function SocialShareButtons({
   return (
     <div className="space-y-3">
       <div className="grid grid-cols-2 gap-3 md:grid-cols-5">
-        {PLATFORMS.map((platform) => (
+        {PLATFORMS.map(({ id, label, Icon }) => (
           <button
-            key={platform.id}
-            onClick={() => handleShare(platform.id)}
+            key={id}
+            onClick={() => handleShare(id)}
             disabled={loading}
-            className={`flex flex-col items-center gap-2 rounded-sm ${platform.color} px-3 py-3 text-sm font-medium text-white transition-all hover:opacity-90 disabled:opacity-60`}
+            className="flex flex-col items-center gap-2 rounded-sm border-2 border-line bg-[#FFFDF7] px-3 py-3 text-sm font-medium text-navy transition-all hover:border-navy hover:bg-navy/5 disabled:cursor-not-allowed disabled:opacity-60"
           >
-            <span className="text-2xl">{platform.icon}</span>
-            <span>{platform.label}</span>
+            <Icon className="h-5 w-5 text-navy" strokeWidth={1.75} aria-hidden />
+            <span>{label}</span>
           </button>
         ))}
       </div>
 
       {copied && (
-        <p className="text-center text-sm text-teal">
-          ✓ Share link copied! Opening {copied.toLowerCase()}...
+        <p className="text-center font-mono text-xs uppercase tracking-wide text-teal">
+          Share link copied -- opening {copied.toLowerCase()}…
         </p>
       )}
     </div>

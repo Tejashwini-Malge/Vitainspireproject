@@ -2,9 +2,17 @@
 
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { api, getToken } from '@/lib/api';
 import Link from 'next/link';
+import { motion } from 'framer-motion';
+import { Clock, RefreshCw, CheckCircle2, X } from 'lucide-react';
+import { api, getToken } from '@/lib/api';
 import { AdminNav } from '@/components/admin/AdminNav';
+import { PageHeader } from '@/components/ui/page-header';
+import { Card } from '@/components/ui/card';
+import { Button } from '@/components/ui/button';
+import { Badge, type BadgeTone } from '@/components/ui/badge';
+import { EmptyState } from '@/components/ui/empty-state';
+import { cn } from '@/components/ui/cn';
 
 interface Escalation {
   id: string;
@@ -106,10 +114,10 @@ export default function AdminEscalationsPage() {
 
   if (loading) {
     return (
-      <div className="max-w-6xl mx-auto p-8">
+      <div className="mx-auto max-w-6xl p-8">
         <AdminNav />
-        <h1 className="text-4xl font-bold mb-8">Escalation Management</h1>
-        <div className="text-center py-12 text-gray-500">Loading...</div>
+        <PageHeader eyebrow="Admin" title="Escalation management" />
+        <div className="py-12 text-center text-muted">Loading...</div>
       </div>
     );
   }
@@ -117,155 +125,147 @@ export default function AdminEscalationsPage() {
   const pendingCount = escalations.filter((e) => e.status === 'PENDING').length;
 
   return (
-    <div className="max-w-6xl mx-auto p-8">
+    <div className="mx-auto max-w-6xl space-y-6 p-8">
       <AdminNav />
-      {/* Header */}
-      <div className="flex justify-between items-center mb-8">
-        <div>
-          <h1 className="text-4xl font-bold">Escalation Management</h1>
-          <p className="text-gray-600 mt-2">
-            {pendingCount > 0
-              ? `${pendingCount} pending escalation${pendingCount !== 1 ? 's' : ''}`
-              : 'No pending escalations'}
-          </p>
-        </div>
-        <button
-          onClick={handleTriggerCheck}
-          className="bg-blue-600 text-white px-6 py-3 rounded-lg hover:bg-blue-700 font-semibold"
-        >
-          🔄 Check for Escalations
-        </button>
-      </div>
+
+      <PageHeader
+        eyebrow="Admin"
+        title="Escalation management"
+        description={
+          pendingCount > 0
+            ? `${pendingCount} pending escalation${pendingCount !== 1 ? 's' : ''}`
+            : 'No pending escalations'
+        }
+        action={
+          <Button variant="primary" onClick={handleTriggerCheck}>
+            <RefreshCw className="h-4 w-4" aria-hidden />
+            Check for escalations
+          </Button>
+        }
+      />
 
       {error && (
-        <div className="bg-red-50 border border-red-200 text-red-700 p-4 rounded-lg mb-8">
+        <div className="rounded-sm border border-status-rejected/40 bg-status-rejected/10 p-4 text-sm text-status-rejected">
           {error}
         </div>
       )}
 
-      {/* Escalations List */}
       {escalations.length === 0 ? (
-        <div className="bg-green-50 border border-green-200 rounded-lg p-8 text-center">
-          <p className="text-lg font-semibold text-green-900">✓ All caught up!</p>
-          <p className="text-green-700 mt-2">No pending escalations requiring attention.</p>
-        </div>
+        <EmptyState
+          title="All caught up"
+          description="No pending escalations requiring attention."
+        />
       ) : (
         <div className="space-y-4">
-          {escalations.map((escalation) => (
-            <div
-              key={escalation.id}
-              className={`border rounded-lg p-6 ${
-                escalation.status === 'PENDING'
-                  ? 'bg-yellow-50 border-yellow-200'
-                  : 'bg-green-50 border-green-200'
-              }`}
-            >
-              <div className="flex justify-between items-start">
-                <div className="flex-1">
-                  {/* Title */}
-                  <div className="flex items-center gap-3 mb-2">
-                    <h2 className="text-xl font-bold text-gray-900">
-                      Proposal {escalation.proposal_id.substring(0, 8)}...
-                    </h2>
-                    <span
-                      className={`px-3 py-1 rounded-full font-semibold text-sm ${
-                        escalation.reason === 'NO_REPLY_5_DAYS'
-                          ? 'bg-yellow-200 text-yellow-800'
-                          : 'bg-red-200 text-red-800'
-                      }`}
-                    >
-                      {escalation.reason === 'NO_REPLY_5_DAYS' ? '⏰ 5 Days' : '🚨 10 Days'}
-                    </span>
-                    <span
-                      className={`px-3 py-1 rounded-full font-semibold text-sm ${
-                        escalation.status === 'PENDING'
-                          ? 'bg-orange-200 text-orange-800'
-                          : 'bg-green-200 text-green-800'
-                      }`}
-                    >
-                      {escalation.status}
-                    </span>
-                  </div>
-
-                  {/* Dates */}
-                  <div className="grid grid-cols-2 gap-4 text-sm text-gray-600 mb-3">
-                    <div>
-                      <span className="font-semibold">Escalated:</span>{' '}
-                      {new Date(escalation.escalated_at).toLocaleString()}
-                    </div>
-                    {escalation.resolved_at && (
-                      <div>
-                        <span className="font-semibold">Resolved:</span>{' '}
-                        {new Date(escalation.resolved_at).toLocaleString()}
+          {escalations.map((escalation, i) => {
+            const statusTone: BadgeTone = escalation.status === 'PENDING' ? 'pending' : 'approved';
+            const reasonTone: BadgeTone = escalation.reason === 'NO_REPLY_5_DAYS' ? 'pending' : 'rejected';
+            return (
+              <motion.div
+                key={escalation.id}
+                initial={{ opacity: 0, y: 8 }}
+                whileInView={{ opacity: 1, y: 0 }}
+                viewport={{ once: true, margin: '-40px' }}
+                transition={{ duration: 0.3, delay: Math.min(i, 8) * 0.04 }}
+              >
+                <Card
+                  className={cn(
+                    'p-6',
+                    escalation.status === 'PENDING' && 'border-status-pending/40',
+                  )}
+                >
+                  <div className="flex flex-wrap items-start justify-between gap-4">
+                    <div className="flex-1">
+                      <div className="mb-2 flex flex-wrap items-center gap-3">
+                        <h2 className="font-display text-xl font-semibold text-navy">
+                          Proposal {escalation.proposal_id.substring(0, 8)}...
+                        </h2>
+                        <Badge tone={reasonTone}>
+                          <Clock className="h-3 w-3" aria-hidden />
+                          {escalation.reason === 'NO_REPLY_5_DAYS' ? '5 days' : '10 days'}
+                        </Badge>
+                        <Badge tone={statusTone}>{escalation.status}</Badge>
                       </div>
-                    )}
-                  </div>
 
-                  {/* Notes */}
-                  {escalation.admin_notes && (
-                    <div className="bg-white rounded p-3 border border-gray-200 text-sm text-gray-700">
-                      <span className="font-semibold">Notes:</span> {escalation.admin_notes}
+                      <div className="mb-3 grid grid-cols-2 gap-4 text-sm text-muted">
+                        <div>
+                          <span className="font-medium text-ink">Escalated:</span>{' '}
+                          {new Date(escalation.escalated_at).toLocaleString()}
+                        </div>
+                        {escalation.resolved_at && (
+                          <div>
+                            <span className="font-medium text-ink">Resolved:</span>{' '}
+                            {new Date(escalation.resolved_at).toLocaleString()}
+                          </div>
+                        )}
+                      </div>
+
+                      {escalation.admin_notes && (
+                        <div className="rounded-sm border border-line bg-paper p-3 text-sm text-ink">
+                          <span className="font-medium">Notes:</span> {escalation.admin_notes}
+                        </div>
+                      )}
                     </div>
-                  )}
-                </div>
 
-                {/* Actions */}
-                <div className="flex-shrink-0 ml-4 flex gap-2">
-                  <button
-                    onClick={() => {
-                      setSelectedEscalation(escalation);
-                      setShowDetails(true);
-                    }}
-                    className="text-blue-600 hover:text-blue-700 font-semibold text-sm"
-                  >
-                    Details
-                  </button>
-                  {escalation.status === 'PENDING' && (
-                    <>
+                    <div className="ml-4 flex shrink-0 gap-3">
                       <button
-                        onClick={() => handleSendFollowUp(escalation.id)}
-                        className="text-green-600 hover:text-green-700 font-semibold text-sm"
+                        onClick={() => {
+                          setSelectedEscalation(escalation);
+                          setShowDetails(true);
+                        }}
+                        className="text-sm font-medium text-navy hover:underline"
                       >
-                        Follow-up
+                        Details
                       </button>
-                      <button
-                        onClick={() => handleResolve(escalation.id)}
-                        className="text-orange-600 hover:text-orange-700 font-semibold text-sm"
-                      >
-                        Resolve
-                      </button>
-                    </>
-                  )}
-                </div>
-              </div>
-            </div>
-          ))}
+                      {escalation.status === 'PENDING' && (
+                        <>
+                          <button
+                            onClick={() => handleSendFollowUp(escalation.id)}
+                            className="text-sm font-medium text-status-approved hover:underline"
+                          >
+                            Follow-up
+                          </button>
+                          <button
+                            onClick={() => handleResolve(escalation.id)}
+                            className="text-sm font-medium text-teal hover:underline"
+                          >
+                            Resolve
+                          </button>
+                        </>
+                      )}
+                    </div>
+                  </div>
+                </Card>
+              </motion.div>
+            );
+          })}
         </div>
       )}
 
       {/* Details Modal */}
       {showDetails && selectedEscalation && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
-          <div className="bg-white rounded-lg max-w-2xl w-full max-h-96 overflow-y-auto p-8">
-            <div className="flex justify-between items-center mb-6">
-              <h2 className="text-2xl font-bold">Escalation Details</h2>
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-navy/50 p-4">
+          <div className="max-h-[80vh] w-full max-w-2xl overflow-y-auto rounded-sm border border-line bg-[#FFFDF7] p-8 shadow-lg">
+            <div className="mb-6 flex items-center justify-between">
+              <h2 className="font-display text-2xl font-semibold text-navy">Escalation details</h2>
               <button
                 onClick={() => setShowDetails(false)}
-                className="text-gray-500 hover:text-gray-700 text-2xl"
+                className="text-muted hover:text-navy"
+                aria-label="Close"
               >
-                ×
+                <X className="h-5 w-5" aria-hidden />
               </button>
             </div>
 
             <div className="space-y-4">
               <div>
-                <span className="font-semibold text-gray-900">Proposal ID:</span>
-                <p className="text-gray-600">{selectedEscalation.proposal_id}</p>
+                <span className="font-medium text-navy">Proposal ID:</span>
+                <p className="text-muted">{selectedEscalation.proposal_id}</p>
               </div>
 
               <div>
-                <span className="font-semibold text-gray-900">Reason:</span>
-                <p className="text-gray-600">
+                <span className="font-medium text-navy">Reason:</span>
+                <p className="text-muted">
                   {selectedEscalation.reason === 'NO_REPLY_5_DAYS'
                     ? 'No reply for 5+ days'
                     : 'No reply for 10+ days'}
@@ -273,53 +273,55 @@ export default function AdminEscalationsPage() {
               </div>
 
               <div>
-                <span className="font-semibold text-gray-900">Status:</span>
-                <p className="text-gray-600">{selectedEscalation.status}</p>
+                <span className="font-medium text-navy">Status:</span>
+                <p className="text-muted">{selectedEscalation.status}</p>
               </div>
 
               <div>
-                <span className="font-semibold text-gray-900">Escalated At:</span>
-                <p className="text-gray-600">
+                <span className="font-medium text-navy">Escalated At:</span>
+                <p className="text-muted">
                   {new Date(selectedEscalation.escalated_at).toLocaleString()}
                 </p>
               </div>
 
               {selectedEscalation.admin_notes && (
                 <div>
-                  <span className="font-semibold text-gray-900">Notes:</span>
-                  <p className="text-gray-600 whitespace-pre-wrap">
+                  <span className="font-medium text-navy">Notes:</span>
+                  <p className="whitespace-pre-wrap text-muted">
                     {selectedEscalation.admin_notes}
                   </p>
                 </div>
               )}
 
-              <div className="flex gap-4 mt-6">
-                <Link
-                  href={`/csr/proposals/${selectedEscalation.proposal_id}`}
-                  className="flex-1 bg-blue-600 text-white text-center py-2 rounded-lg hover:bg-blue-700 font-semibold"
-                >
-                  View Proposal
+              <div className="mt-6 flex gap-4">
+                <Link href={`/csr/proposals/${selectedEscalation.proposal_id}`} className="flex-1">
+                  <Button variant="secondary" className="w-full">
+                    View proposal
+                  </Button>
                 </Link>
                 {selectedEscalation.status === 'PENDING' && (
                   <>
-                    <button
+                    <Button
+                      variant="primary"
+                      className="flex-1"
                       onClick={() => {
                         handleSendFollowUp(selectedEscalation.id);
                         setShowDetails(false);
                       }}
-                      className="flex-1 bg-green-600 text-white py-2 rounded-lg hover:bg-green-700 font-semibold"
                     >
-                      Send Follow-up
-                    </button>
-                    <button
+                      Send follow-up
+                    </Button>
+                    <Button
+                      variant="secondary"
+                      className="flex-1"
                       onClick={() => {
                         handleResolve(selectedEscalation.id);
                         setShowDetails(false);
                       }}
-                      className="flex-1 bg-orange-600 text-white py-2 rounded-lg hover:bg-orange-700 font-semibold"
                     >
+                      <CheckCircle2 className="h-4 w-4" aria-hidden />
                       Resolve
-                    </button>
+                    </Button>
                   </>
                 )}
               </div>

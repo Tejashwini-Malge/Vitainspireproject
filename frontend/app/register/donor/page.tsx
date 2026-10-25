@@ -3,6 +3,11 @@
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { FormEvent, useState } from "react";
+import { motion } from "framer-motion";
+import { Card } from "@/components/ui/card";
+import { Input } from "@/components/ui/input";
+import { Button } from "@/components/ui/button";
+import { PageHeader } from "@/components/ui/page-header";
 import { api, ApiError, setToken } from "@/lib/api";
 import type { Org, OrgType } from "@/lib/types";
 
@@ -43,68 +48,109 @@ export default function RegisterDonorPage() {
   }
 
   return (
-    <div className="mx-auto max-w-md space-y-6">
-      <div className="space-y-1">
-        <h1 className="text-2xl font-semibold text-navy">Register as a donor or CSR team</h1>
-        <p className="text-muted">
-          This keeps a record of what you&apos;ve given and who to. It&apos;s never required to
-          donate once -- you can always do that below without an account.
-        </p>
-      </div>
-      <form onSubmit={onSubmit} className="space-y-4" aria-describedby={error ? "donor-register-error" : undefined}>
-        <label className="block">
-          <span className="text-sm font-medium">Your name</span>
-          <input required value={fullName} onChange={(e) => setFullName(e.target.value)} autoComplete="name"
-            className="mt-1 w-full rounded-sm border-2 border-line bg-white px-3 py-2" />
-        </label>
-        <label className="block">
-          <span className="text-sm font-medium">Email</span>
-          <input type="email" required value={email} onChange={(e) => setEmail(e.target.value)} autoComplete="email"
-            className="mt-1 w-full rounded-sm border-2 border-line bg-white px-3 py-2" />
-        </label>
-        <label className="block">
-          <span className="text-sm font-medium">Password (12 characters or more)</span>
-          <input type="password" required minLength={12} value={password} onChange={(e) => setPassword(e.target.value)}
-            autoComplete="new-password" className="mt-1 w-full rounded-sm border-2 border-line bg-white px-3 py-2" />
-        </label>
+    <motion.div
+      initial={{ opacity: 0, y: 12 }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={{ duration: 0.35, ease: "easeOut" }}
+      className="mx-auto max-w-md space-y-8"
+    >
+      <PageHeader
+        eyebrow="Join Imparency"
+        title="Register as a donor or CSR team"
+        description="This keeps a record of what you've given and who to. It's never required to donate once -- you can always do that below without an account."
+      />
 
-        <fieldset className="space-y-2">
-          <legend className="text-sm font-medium">You&apos;re giving as</legend>
-          <label className="flex items-center gap-2">
-            <input type="radio" name="givingAs" checked={givingAs === "INDIVIDUAL"} onChange={() => setGivingAs("INDIVIDUAL")} />
-            <span>Just me</span>
-          </label>
-          <label className="flex items-center gap-2">
-            <input type="radio" name="givingAs" checked={givingAs === "CSR"} onChange={() => setGivingAs("CSR")} />
-            <span>A company or CSR team</span>
-          </label>
-        </fieldset>
-
-        {givingAs === "CSR" && (
+      <Card className="p-6 sm:p-8">
+        <form onSubmit={onSubmit} className="space-y-4" aria-describedby={error ? "donor-register-error" : undefined}>
           <label className="block">
-            <span className="text-sm font-medium">Organization name</span>
-            <input required minLength={2} value={orgName} onChange={(e) => setOrgName(e.target.value)}
-              className="mt-1 w-full rounded-sm border-2 border-line bg-white px-3 py-2" />
+            <span className="text-sm font-medium text-navy">Your name</span>
+            <Input
+              required
+              value={fullName}
+              onChange={(e) => setFullName(e.target.value)}
+              autoComplete="name"
+              className="mt-1"
+            />
           </label>
-        )}
+          <label className="block">
+            <span className="text-sm font-medium text-navy">Email</span>
+            <Input
+              type="email"
+              required
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
+              autoComplete="email"
+              className="mt-1"
+            />
+          </label>
+          <label className="block">
+            <span className="text-sm font-medium text-navy">Password (12 characters or more)</span>
+            <Input
+              type="password"
+              required
+              minLength={12}
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+              autoComplete="new-password"
+              className="mt-1"
+            />
+          </label>
 
-        {error && (
-          <p id="donor-register-error" role="alert" className="text-sm text-status-rejected">
-            {error}
-          </p>
-        )}
-        <button type="submit" disabled={busy}
-          className="w-full rounded-sm bg-teal px-4 py-2 font-display font-medium text-paper disabled:opacity-60">
-          {busy ? "Creating…" : "Create account"}
-        </button>
-      </form>
-      <p className="text-sm text-muted">
+          <fieldset className="space-y-2 rounded-sm border border-line bg-navy/[0.03] p-4">
+            <legend className="px-1 text-sm font-medium text-navy">You&apos;re giving as</legend>
+            <label className="flex items-center gap-2 text-sm text-ink">
+              <input
+                type="radio"
+                name="givingAs"
+                checked={givingAs === "INDIVIDUAL"}
+                onChange={() => setGivingAs("INDIVIDUAL")}
+                className="accent-teal"
+              />
+              <span>Just me</span>
+            </label>
+            <label className="flex items-center gap-2 text-sm text-ink">
+              <input
+                type="radio"
+                name="givingAs"
+                checked={givingAs === "CSR"}
+                onChange={() => setGivingAs("CSR")}
+                className="accent-teal"
+              />
+              <span>A company or CSR team</span>
+            </label>
+          </fieldset>
+
+          {givingAs === "CSR" && (
+            <label className="block">
+              <span className="text-sm font-medium text-navy">Organization name</span>
+              <Input
+                required
+                minLength={2}
+                value={orgName}
+                onChange={(e) => setOrgName(e.target.value)}
+                className="mt-1"
+              />
+            </label>
+          )}
+
+          {error && (
+            <p id="donor-register-error" role="alert" className="text-sm text-status-rejected">
+              {error}
+            </p>
+          )}
+          <Button type="submit" disabled={busy} className="w-full">
+            {busy ? "Creating…" : "Create account"}
+          </Button>
+        </form>
+      </Card>
+
+      <p className="text-center text-sm text-muted">
         Registering an NGO instead?{" "}
         <Link href="/register/ngo" className="font-medium text-teal hover:underline">
           Register your NGO
         </Link>
         .
       </p>
-    </div>
+    </motion.div>
   );
 }

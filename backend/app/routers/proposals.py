@@ -22,6 +22,7 @@ from app.models import (
     DocumentType,
     FinanceLedger,
     Membership,
+    NgoProfile,
     Opportunity,
     Organization,
     OrgType,
@@ -419,6 +420,107 @@ Return ONLY the text, no JSON."""
         return {
             "about": "We are working to create positive change in our community. Our approach combines proven methodologies with local insights. We measure impact and continuously improve our programs."
         }
+
+
+@router.post("/ngo/proposals/generate-draft")
+def generate_proposal_draft(
+    payload: dict,
+    user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+) -> dict:
+    """Draft proposal text (problem statement, solution, timeline, expected outcomes)
+    from the selected opportunity and the NGO's own profile.
+
+    This is a starting point for the NGO to edit, not a submission -- the human still
+    reviews and edits every field before "Submit Proposal" is clicked.
+    """
+    from app.config import settings
+    import json as json_lib
+    import requests
+
+    opportunity_id = payload.get("opportunity_id")
+    if not opportunity_id:
+        raise HTTPException(status.HTTP_400_BAD_REQUEST, "opportunity_id is required")
+
+    opp = db.get(Opportunity, opportunity_id)
+    if opp is None:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "Opportunity not found")
+
+    ngo_org = db.scalar(
+        select(Organization)
+        .join(Membership)
+        .where(Membership.user_id == user.id, Organization.org_type == OrgType.NGO)
+    )
+    if ngo_org is None:
+        raise HTTPException(status.HTTP_403_FORBIDDEN, "User must be a member of an NGO organization")
+
+    profile = db.scalar(select(NgoProfile).where(NgoProfile.org_id == ngo_org.id))
+
+    fallback = {
+        "problem_statement": f"Communities in {', '.join(opp.geographies) or 'our focus areas'} face challenges related to {', '.join(opp.sectors) or 'the sectors this opportunity addresses'}, limiting access to the support they need.",
+        "solution": f"{ngo_org.name} will apply our experience in {', '.join((profile.sectors if profile else []) or opp.sectors)} to deliver targeted, measurable interventions aligned with this opportunity's requirements.",
+        "timeline": "12 months",
+        "expected_outcomes": "Improved outcomes for the target beneficiaries, tracked against clear milestones and reported transparently to the funder.",
+    }
+
+    if not settings.llm_api_key:
+        return fallback
+
+    prompt = f"""You are helping an NGO draft a funding proposal in response to a CSR opportunity. Use only the facts given below -- do not invent statistics, partners, or outcomes.
+
+Opportunity title: {opp.title}
+Opportunity description: {opp.description}
+Opportunity sectors: {', '.join(opp.sectors) or 'not specified'}
+Opportunity geographies: {', '.join(opp.geographies) or 'not specified'}
+Budget range: {opp.budget_min or 'not specified'} to {opp.budget_max or 'not specified'}
+Requirements: {opp.requirements_text}
+
+NGO name: {ngo_org.name}
+NGO mission: {(profile.mission if profile else '') or 'not provided'}
+NGO sectors: {', '.join(profile.sectors) if profile and profile.sectors else 'not provided'}
+NGO about: {(profile.about if profile else '') or 'not provided'}
+
+Return ONLY a JSON object with these exact keys, no markdown, no commentary:
+{{
+  "problem_statement": "2-4 sentences describing the problem this proposal addresses",
+  "solution": "2-4 sentences describing the NGO's proposed approach",
+  "timeline": "a short phrase like '12 months'",
+  "expected_outcomes": "2-4 sentences describing measurable expected outcomes"
+}}"""
+
+    try:
+        response = requests.post(
+            "https://openrouter.ai/api/v1/chat/completions",
+            headers={
+                "Authorization": f"Bearer {settings.llm_api_key}",
+                "Content-Type": "application/json",
+            },
+            json={
+                "model": settings.llm_model,
+                "messages": [{"role": "user", "content": prompt}],
+                "max_tokens": 500,
+            },
+            timeout=30,
+        )
+        if response.status_code != 200:
+            raise Exception(f"OpenRouter API error: {response.status_code}")
+
+        text = response.json()["choices"][0]["message"]["content"].strip()
+        # Models sometimes wrap JSON in a markdown fence despite instructions.
+        if text.startswith("```"):
+            text = text.strip("`")
+            if text.startswith("json"):
+                text = text[4:]
+        draft = json_lib.loads(text)
+
+        return {
+            "problem_statement": draft.get("problem_statement") or fallback["problem_statement"],
+            "solution": draft.get("solution") or fallback["solution"],
+            "timeline": draft.get("timeline") or fallback["timeline"],
+            "expected_outcomes": draft.get("expected_outcomes") or fallback["expected_outcomes"],
+        }
+    except Exception:
+        return fallback
 
 
 # Messaging routes

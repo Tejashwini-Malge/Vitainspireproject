@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react';
 import { api } from '@/lib/api';
 import Link from 'next/link';
+import { MessageSquare, CheckCircle2, PencilLine, Megaphone } from 'lucide-react';
 
 interface Notification {
   id: string;
@@ -66,32 +67,32 @@ export default function NotificationCenter({ onClose }: NotificationCenterProps)
   const getNotificationIcon = (type: string) => {
     switch (type) {
       case 'NEW_MESSAGE':
-        return '💬';
+        return <MessageSquare className="h-4 w-4" />;
       case 'PROPOSAL_APPROVED':
-        return '✅';
+        return <CheckCircle2 className="h-4 w-4" />;
       case 'CHANGES_REQUESTED':
-        return '✏️';
+        return <PencilLine className="h-4 w-4" />;
       default:
-        return '📢';
+        return <Megaphone className="h-4 w-4" />;
     }
   };
 
   const getNotificationColor = (type: string) => {
     switch (type) {
       case 'NEW_MESSAGE':
-        return 'border-blue-200 bg-blue-50';
+        return 'text-navy bg-navy/5';
       case 'PROPOSAL_APPROVED':
-        return 'border-green-200 bg-green-50';
+        return 'text-status-approved bg-status-approved/10';
       case 'CHANGES_REQUESTED':
-        return 'border-orange-200 bg-orange-50';
+        return 'text-status-pending bg-status-pending/10';
       default:
-        return 'border-gray-200 bg-gray-50';
+        return 'text-muted bg-navy/5';
     }
   };
 
   if (loading) {
     return (
-      <div className="p-4 text-center text-gray-500">
+      <div className="w-full max-w-md rounded-sm border border-line bg-[#FFFDF7] p-4 text-center text-muted shadow-[0_8px_24px_rgba(29,43,79,0.12)]">
         Loading notifications...
       </div>
     );
@@ -100,19 +101,19 @@ export default function NotificationCenter({ onClose }: NotificationCenterProps)
   const unreadCount = notifications.filter((n) => !n.is_read).length;
 
   return (
-    <div className="w-full max-w-md bg-white rounded-lg shadow-lg">
+    <div className="w-full max-w-md rounded-sm border border-line bg-[#FFFDF7] shadow-[0_8px_24px_rgba(29,43,79,0.12)]">
       {/* Header */}
-      <div className="border-b p-4 flex justify-between items-center">
+      <div className="flex items-center justify-between border-b border-line p-4">
         <div>
-          <h2 className="text-xl font-bold text-gray-900">Notifications</h2>
+          <h2 className="font-display text-lg font-semibold text-navy">Notifications</h2>
           {unreadCount > 0 && (
-            <p className="text-sm text-gray-600">{unreadCount} unread</p>
+            <p className="text-sm text-muted">{unreadCount} unread</p>
           )}
         </div>
         {unreadCount > 0 && (
           <button
             onClick={handleMarkAllAsRead}
-            className="text-sm text-blue-600 hover:text-blue-700 font-semibold"
+            className="text-sm font-semibold text-teal hover:underline"
           >
             Mark all as read
           </button>
@@ -122,11 +123,11 @@ export default function NotificationCenter({ onClose }: NotificationCenterProps)
       {/* Notifications List */}
       <div className="max-h-96 overflow-y-auto">
         {error && (
-          <div className="p-4 text-red-600 text-sm">{error}</div>
+          <div className="p-4 text-sm text-status-rejected">{error}</div>
         )}
 
         {notifications.length === 0 ? (
-          <div className="p-8 text-center text-gray-500">
+          <div className="p-8 text-center text-muted">
             <p>No notifications yet</p>
           </div>
         ) : (
@@ -134,8 +135,8 @@ export default function NotificationCenter({ onClose }: NotificationCenterProps)
             <Link
               key={notif.id}
               href={`/ngo/proposals/${notif.proposal_id}`}
-              className={`block border-b p-4 hover:bg-gray-50 transition ${
-                !notif.is_read ? 'bg-blue-50' : ''
+              className={`block border-b border-line p-4 transition hover:bg-navy/5 ${
+                !notif.is_read ? 'bg-teal/5' : ''
               }`}
               onClick={() => {
                 if (!notif.is_read) {
@@ -146,26 +147,26 @@ export default function NotificationCenter({ onClose }: NotificationCenterProps)
             >
               <div className="flex gap-3">
                 {/* Icon */}
-                <span className="text-xl flex-shrink-0">
+                <span className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-full ${getNotificationColor(notif.notification_type)}`}>
                   {getNotificationIcon(notif.notification_type)}
                 </span>
 
                 {/* Content */}
-                <div className="flex-1 min-w-0">
-                  <p className="font-semibold text-gray-900 line-clamp-1">
+                <div className="min-w-0 flex-1">
+                  <p className="line-clamp-1 font-semibold text-navy">
                     {notif.title}
                   </p>
-                  <p className="text-sm text-gray-600 line-clamp-2">
+                  <p className="line-clamp-2 text-sm text-muted">
                     {notif.message}
                   </p>
-                  <p className="text-xs text-gray-500 mt-1">
+                  <p className="mt-1 font-mono text-xs text-muted">
                     {new Date(notif.created_at).toLocaleString()}
                   </p>
                 </div>
 
                 {/* Unread Badge */}
                 {!notif.is_read && (
-                  <div className="flex-shrink-0 w-2 h-2 rounded-full bg-blue-600 mt-2" />
+                  <div className="mt-2 h-2 w-2 shrink-0 rounded-full bg-teal" />
                 )}
               </div>
             </Link>
@@ -175,10 +176,10 @@ export default function NotificationCenter({ onClose }: NotificationCenterProps)
 
       {/* Footer */}
       {notifications.length > 0 && (
-        <div className="border-t p-4 text-center">
+        <div className="border-t border-line p-4 text-center">
           <Link
             href="/notifications"
-            className="text-blue-600 hover:text-blue-700 font-semibold text-sm"
+            className="text-sm font-semibold text-teal hover:underline"
           >
             View all notifications
           </Link>

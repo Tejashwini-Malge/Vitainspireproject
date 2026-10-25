@@ -3,7 +3,10 @@
 import { FormEvent, useCallback, useEffect, useRef, useState } from 'react';
 import Link from 'next/link';
 import { useParams, useRouter } from 'next/navigation';
+import { motion, AnimatePresence } from 'framer-motion';
 import { api, getToken } from '@/lib/api';
+import { Textarea } from '@/components/ui/textarea';
+import { Button } from '@/components/ui/button';
 import type { Conversation, ConversationMessage, Me } from '@/lib/types';
 
 const SIDE_LABEL: Record<string, string> = {
@@ -77,13 +80,13 @@ export default function ConversationPage() {
     }
   }
 
-  if (loading) return <div className="p-8 text-gray-500">Loading conversation…</div>;
+  if (loading) return <p className="mx-auto max-w-3xl p-8 text-muted">Loading conversation…</p>;
 
   if (!conversation) {
     return (
-      <div className="max-w-3xl mx-auto p-8">
-        <p className="text-gray-700">{error}</p>
-        <Link href="/inbox" className="text-blue-600 hover:underline">Back to conversations</Link>
+      <div className="mx-auto max-w-3xl space-y-3 p-8">
+        <p className="text-ink">{error}</p>
+        <Link href="/inbox" className="font-medium text-teal hover:underline">Back to conversations</Link>
       </div>
     );
   }
@@ -91,71 +94,80 @@ export default function ConversationPage() {
   const closed = conversation.status === 'CLOSED';
 
   return (
-    <div className="max-w-3xl mx-auto p-8">
-      <Link href="/inbox" className="text-blue-600 text-sm hover:underline">← All conversations</Link>
+    <div className="mx-auto max-w-3xl space-y-6 p-8">
+      <Link href="/inbox" className="text-sm font-medium text-teal hover:underline">← All conversations</Link>
 
-      <header className="mt-3 mb-6">
-        <h1 className="text-2xl font-bold">{conversation.subject}</h1>
-        <p className="text-sm text-gray-600 mt-1">
+      <header className="space-y-1.5">
+        <p className="font-mono text-xs uppercase tracking-[0.18em] text-muted">
           {conversation.kind === 'DONOR_ADMIN'
             ? 'With platform staff'
             : conversation.kind === 'ADMIN_ORG'
             ? 'Between your organisation and platform staff'
-            : 'Direct conversation — not tied to any proposal'}
+            : 'Direct conversation'}
           {closed && ' · Closed'}
         </p>
+        <h1 className="text-2xl font-semibold text-navy">{conversation.subject}</h1>
       </header>
 
-      {error && <div className="bg-red-100 text-red-700 p-3 rounded mb-4">{error}</div>}
+      {error && (
+        <p role="alert" className="rounded-sm border border-status-rejected/40 bg-status-rejected/10 p-3 text-status-rejected">
+          {error}
+        </p>
+      )}
 
-      <ul className="space-y-3 mb-6">
-        {messages.map((m) => {
-          const mine = m.sender_user_id === myUserId;
-          return (
-            <li key={m.id} className={mine ? 'text-right' : 'text-left'}>
-              <div
-                className={`inline-block max-w-[85%] rounded-lg px-4 py-2 text-left ${
-                  mine ? 'bg-blue-600 text-white' : 'bg-gray-100 text-gray-900'
-                }`}
+      <ul className="space-y-3">
+        <AnimatePresence initial={false}>
+          {messages.map((m) => {
+            const mine = m.sender_user_id === myUserId;
+            return (
+              <motion.li
+                key={m.id}
+                initial={{ opacity: 0, y: 8 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ duration: 0.2 }}
+                className={mine ? 'text-right' : 'text-left'}
               >
-                <p className={`text-xs mb-1 ${mine ? 'text-blue-100' : 'text-gray-500'}`}>
-                  {mine
-                    ? 'You'
-                    : conversation.kind === 'ORG_ORG'
-                    ? 'Other organisation'
-                    : SIDE_LABEL[m.sender_side] ?? m.sender_side}
-                  {' · '}
-                  {new Date(m.created_at).toLocaleString()}
-                </p>
-                <p className="whitespace-pre-wrap break-words">{m.content}</p>
-              </div>
-            </li>
-          );
-        })}
+                <div
+                  className={`inline-block max-w-[85%] rounded-sm px-4 py-2 text-left ${
+                    mine
+                      ? 'border border-navy bg-navy text-paper'
+                      : 'border border-line bg-[#FFFDF7] text-ink'
+                  }`}
+                >
+                  <p className={`mb-1 font-mono text-xs ${mine ? 'text-paper/70' : 'text-muted'}`}>
+                    {mine
+                      ? 'You'
+                      : conversation.kind === 'ORG_ORG'
+                      ? 'Other organisation'
+                      : SIDE_LABEL[m.sender_side] ?? m.sender_side}
+                    {' · '}
+                    {new Date(m.created_at).toLocaleString()}
+                  </p>
+                  <p className="whitespace-pre-wrap break-words">{m.content}</p>
+                </div>
+              </motion.li>
+            );
+          })}
+        </AnimatePresence>
         <div ref={endRef} />
       </ul>
 
       {closed ? (
-        <p className="rounded-lg border border-gray-200 bg-gray-50 p-4 text-sm text-gray-600">
+        <p className="rounded-sm border border-line bg-[#FFFDF7] p-4 text-sm text-muted">
           This conversation is closed. Start a new one if you need anything else.
         </p>
       ) : (
         <form onSubmit={send} className="space-y-3">
-          <textarea
+          <Textarea
             rows={4}
             value={draft}
             onChange={(e) => setDraft(e.target.value)}
             placeholder="Write your reply…"
-            className="w-full rounded-md border border-gray-300 px-3 py-2"
             maxLength={5000}
           />
-          <button
-            type="submit"
-            disabled={sending || !draft.trim()}
-            className="rounded-md bg-blue-600 px-5 py-2 text-white disabled:opacity-50"
-          >
+          <Button type="submit" variant="primary" size="md" disabled={sending || !draft.trim()}>
             {sending ? 'Sending…' : 'Send'}
-          </button>
+          </Button>
         </form>
       )}
     </div>

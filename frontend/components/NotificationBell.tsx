@@ -1,6 +1,8 @@
 'use client';
 
 import { useEffect, useState, useRef } from 'react';
+import { Bell } from 'lucide-react';
+import { AnimatePresence, motion } from 'framer-motion';
 import { api } from '@/lib/api';
 import NotificationCenter from './NotificationCenter';
 
@@ -59,37 +61,33 @@ export default function NotificationBell() {
           setIsOpen(!isOpen);
           loadSummary();
         }}
-        className="relative p-2 text-gray-600 hover:text-gray-900 transition"
+        className="relative rounded-sm p-2 text-navy transition hover:bg-navy/5 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--focus)]"
         title="Notifications"
       >
-        <svg
-          className="w-6 h-6"
-          fill="none"
-          stroke="currentColor"
-          viewBox="0 0 24 24"
-        >
-          <path
-            strokeLinecap="round"
-            strokeLinejoin="round"
-            strokeWidth={2}
-            d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9"
-          />
-        </svg>
+        <Bell className="h-5 w-5" strokeWidth={1.75} />
 
         {/* Unread Badge */}
         {summary && summary.unread_count > 0 && (
-          <span className="absolute top-0 right-0 inline-flex items-center justify-center px-2 py-1 text-xs font-bold leading-none text-white transform translate-x-1/2 -translate-y-1/2 bg-red-600 rounded-full">
+          <span className="absolute -right-1 -top-1 inline-flex min-w-[1.1rem] items-center justify-center rounded-full border border-paper bg-teal px-1 py-0.5 font-mono text-[0.65rem] font-bold leading-none text-paper">
             {summary.unread_count > 9 ? '9+' : summary.unread_count}
           </span>
         )}
       </button>
 
       {/* Dropdown */}
-      {isOpen && (
-        <div className="absolute right-0 mt-2 z-50">
-          <NotificationCenter onClose={() => setIsOpen(false)} />
-        </div>
-      )}
+      <AnimatePresence>
+        {isOpen && (
+          <motion.div
+            initial={{ opacity: 0, scale: 0.97, y: -6 }}
+            animate={{ opacity: 1, scale: 1, y: 0 }}
+            exit={{ opacity: 0, scale: 0.97, y: -6 }}
+            transition={{ duration: 0.15, ease: 'easeOut' }}
+            className="absolute right-0 z-50 mt-2 origin-top-right"
+          >
+            <NotificationCenter onClose={() => setIsOpen(false)} />
+          </motion.div>
+        )}
+      </AnimatePresence>
     </div>
   );
 }

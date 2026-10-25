@@ -5,6 +5,9 @@ import { useCallback, useEffect, useState } from "react";
 import { Notice } from "@/components/Notice";
 import { OrgNav } from "@/components/OrgNav";
 import { VerificationBadge } from "@/components/VerificationBadge";
+import { Card } from "@/components/ui/card";
+import { EmptyState } from "@/components/ui/empty-state";
+import { PageHeader } from "@/components/ui/page-header";
 import { api, ApiError, clearToken, getToken } from "@/lib/api";
 import type { Donation, Me, Org } from "@/lib/types";
 
@@ -66,36 +69,37 @@ export default function OrgDonationsPage() {
 
   return (
     <div className="space-y-8">
-      <header className="space-y-2">
-        <h1 className="text-2xl font-semibold text-navy">{org.name}</h1>
-        <p className="text-muted">
-          {org.org_type} · <VerificationBadge status={org.verification_status} />
-        </p>
+      <div className="space-y-3">
+        <PageHeader
+          eyebrow={org.org_type}
+          title={org.name}
+          description={<VerificationBadge status={org.verification_status} />}
+        />
         <OrgNav orgId={id} showNgoTabs={org.org_type === "NGO"} />
-      </header>
+      </div>
 
       {org.org_type !== "NGO" ? (
         <p className="text-muted">Donations are received by NGO organizations.</p>
       ) : donations.length === 0 ? (
-        <p className="text-muted">No donations have been received yet.</p>
+        <EmptyState title="No donations have been received yet" />
       ) : (
         <section className="space-y-4">
           <p className="text-lg">
             <span className="font-semibold text-navy">{formatMoney(total, donations[0].currency)}</span>{" "}
             <span className="text-muted">received across {donations.length} donation{donations.length === 1 ? "" : "s"}</span>
           </p>
-          <ul className="divide-y-2 divide-line rounded-sm border-2 border-line bg-white">
+          <Card className="divide-y divide-line">
             {donations.map((d) => (
-              <li key={d.id} className="flex flex-wrap items-center justify-between gap-2 px-4 py-3">
+              <div key={d.id} className="flex flex-wrap items-center justify-between gap-2 px-4 py-3">
                 <div>
                   <p className="font-medium text-navy">{d.donor_name}</p>
                   <p className="text-sm text-muted">{formatDate(d.created_at)}</p>
                   {d.message && <p className="mt-1 text-sm italic text-muted">&ldquo;{d.message}&rdquo;</p>}
                 </div>
                 <span className="font-medium">{formatMoney(d.amount_minor, d.currency)}</span>
-              </li>
+              </div>
             ))}
-          </ul>
+          </Card>
         </section>
       )}
     </div>

@@ -5,6 +5,10 @@ import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { api, getToken } from '@/lib/api';
 import NotificationBell from '@/components/NotificationBell';
+import { Button } from '@/components/ui/button';
+import { Card } from '@/components/ui/card';
+import { EmptyState } from '@/components/ui/empty-state';
+import { PageHeader } from '@/components/ui/page-header';
 
 interface Notification {
   id: string;
@@ -83,27 +87,27 @@ export default function NotificationsPage() {
     }
   };
 
-  const getNotificationColor = (type: string) => {
+  const getNotificationTone = (type: string) => {
     switch (type) {
       case 'NEW_MESSAGE':
-        return 'border-l-4 border-l-blue-600 bg-blue-50';
+        return 'border-l-navy';
       case 'PROPOSAL_APPROVED':
-        return 'border-l-4 border-l-green-600 bg-green-50';
+        return 'border-l-status-approved';
       case 'CHANGES_REQUESTED':
-        return 'border-l-4 border-l-orange-600 bg-orange-50';
+        return 'border-l-status-pending';
       default:
-        return 'border-l-4 border-l-gray-600 bg-gray-50';
+        return 'border-l-line';
     }
   };
 
   if (loading) {
     return (
-      <div className="max-w-4xl mx-auto p-8">
-        <div className="flex justify-between items-center mb-8">
-          <h1 className="text-4xl font-bold">Notifications</h1>
+      <div className="space-y-8">
+        <div className="flex items-center justify-between">
+          <h1 className="text-2xl font-semibold tracking-tight text-navy sm:text-3xl">Notifications</h1>
           <NotificationBell />
         </div>
-        <div className="text-center py-12 text-gray-500">Loading...</div>
+        <p className="text-muted">Loading…</p>
       </div>
     );
   }
@@ -115,122 +119,102 @@ export default function NotificationsPage() {
       : notifications;
 
   return (
-    <div className="max-w-4xl mx-auto p-8">
+    <div className="space-y-8">
       {/* Header */}
-      <div className="flex justify-between items-center mb-8">
-        <div>
-          <h1 className="text-4xl font-bold">Notifications</h1>
-          <p className="text-gray-600 mt-2">
-            {unreadCount > 0
-              ? `${unreadCount} unread notification${unreadCount !== 1 ? 's' : ''}`
-              : 'All caught up!'}
-          </p>
-        </div>
-        <div className="flex gap-4 items-center">
-          {unreadCount > 0 && (
-            <button
-              onClick={handleMarkAllAsRead}
-              className="text-sm text-blue-600 hover:text-blue-700 font-semibold"
-            >
-              Mark all as read
-            </button>
-          )}
-          <NotificationBell />
-        </div>
-      </div>
+      <PageHeader
+        eyebrow="Inbox"
+        title="Notifications"
+        description={unreadCount > 0 ? `${unreadCount} unread notification${unreadCount !== 1 ? 's' : ''}` : 'All caught up!'}
+        action={
+          <div className="flex items-center gap-4">
+            {unreadCount > 0 && (
+              <button
+                onClick={handleMarkAllAsRead}
+                className="text-sm font-semibold text-teal hover:underline"
+              >
+                Mark all as read
+              </button>
+            )}
+            <NotificationBell />
+          </div>
+        }
+      />
 
       {/* Filter */}
-      <div className="flex gap-4 mb-8">
-        <button
-          onClick={() => setFilter('all')}
-          className={`px-4 py-2 rounded-lg font-semibold transition ${
-            filter === 'all'
-              ? 'bg-blue-600 text-white'
-              : 'bg-gray-200 text-gray-700 hover:bg-gray-300'
-          }`}
-        >
+      <div className="flex gap-3">
+        <Button variant={filter === 'all' ? 'primary' : 'secondary'} size="sm" onClick={() => setFilter('all')}>
           All
-        </button>
-        <button
-          onClick={() => setFilter('unread')}
-          className={`px-4 py-2 rounded-lg font-semibold transition ${
-            filter === 'unread'
-              ? 'bg-blue-600 text-white'
-              : 'bg-gray-200 text-gray-700 hover:bg-gray-300'
-          }`}
-        >
+        </Button>
+        <Button variant={filter === 'unread' ? 'primary' : 'secondary'} size="sm" onClick={() => setFilter('unread')}>
           Unread
-        </button>
+        </Button>
       </div>
 
       {/* Error */}
       {error && (
-        <div className="bg-red-50 border border-red-200 text-red-700 p-4 rounded-lg mb-8">
+        <div className="rounded-sm border border-status-rejected/40 bg-status-rejected/5 p-4 text-sm text-status-rejected">
           {error}
         </div>
       )}
 
       {/* Notifications List */}
       {filteredNotifications.length === 0 ? (
-        <div className="text-center py-12 text-gray-500">
-          <p className="text-xl mb-2">
-            {filter === 'unread' ? 'No unread notifications' : 'No notifications yet'}
-          </p>
-          <p>
-            {filter === 'unread'
-              ? 'Check back later for updates'
-              : 'When you receive messages or updates, they will appear here'}
-          </p>
-        </div>
+        <EmptyState
+          title={filter === 'unread' ? 'No unread notifications' : 'No notifications yet'}
+          description={filter === 'unread' ? 'Check back later for updates.' : 'When you receive messages or updates, they will appear here.'}
+        />
       ) : (
         <div className="space-y-4">
           {filteredNotifications.map((notif) => (
             <Link
               key={notif.id}
               href={`/ngo/proposals/${notif.proposal_id}`}
-              className={`block p-4 rounded-lg border transition hover:shadow-md ${getNotificationColor(
-                notif.notification_type
-              )} ${!notif.is_read ? 'shadow-sm' : ''}`}
               onClick={() => {
                 if (!notif.is_read) {
                   handleMarkAsRead(notif.id);
                 }
               }}
+              className="block"
             >
-              <div className="flex gap-4">
-                {/* Icon */}
-                <span className="text-3xl flex-shrink-0">
-                  {getNotificationIcon(notif.notification_type)}
-                </span>
+              <Card
+                interactive
+                className={`border-l-4 p-4 ${getNotificationTone(notif.notification_type)} ${!notif.is_read ? 'shadow-sm' : ''}`}
+              >
+                <div className="flex gap-4">
+                  {/* Icon */}
+                  <span className="text-3xl flex-shrink-0">
+                    {getNotificationIcon(notif.notification_type)}
+                  </span>
 
-                {/* Content */}
-                <div className="flex-1">
-                  <div className="flex items-start justify-between">
-                    <div>
-                      <p className="font-bold text-lg text-gray-900">
-                        {notif.title}
-                      </p>
-                      <p className="text-gray-700 mt-1">{notif.message}</p>
-                    </div>
-                    {!notif.is_read && (
-                      <div className="flex-shrink-0 ml-4">
-                        <button
-                          onClick={(e) => {
-                            e.preventDefault();
-                            handleMarkAsRead(notif.id);
-                          }}
-                          className="text-xs text-blue-600 hover:text-blue-700 font-semibold"
-                        >
-                          Mark as read
-                        </button>
+                  {/* Content */}
+                  <div className="flex-1">
+                    <div className="flex items-start justify-between">
+                      <div>
+                        <p className="font-semibold text-lg text-navy">
+                          {notif.title}
+                        </p>
+                        <p className="text-muted mt-1">{notif.message}</p>
                       </div>
-                    )}
+                      {!notif.is_read && (
+                        <div className="flex-shrink-0 ml-4">
+                          <button
+                            onClick={(e) => {
+                              e.preventDefault();
+                              handleMarkAsRead(notif.id);
+                            }}
+                            className="text-xs font-semibold text-teal hover:underline"
+                          >
+                            Mark as read
+                          </button>
+                        </div>
+                      )}
+                    </div>
+                    <p className="text-xs text-muted mt-2">
+                      {new Date(notif.created_at).toLocaleString()}
+                    </p>
                   </div>
-                  <p className="text-xs text-gray-500 mt-2">
-                    {new Date(notif.created_at).toLocaleString()}
-                  </p>
                 </div>
-              </div>
+              </Card>
             </Link>
           ))}
         </div>

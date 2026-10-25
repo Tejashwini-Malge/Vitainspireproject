@@ -2,12 +2,25 @@
 
 import { useCallback, useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
+import { motion } from 'framer-motion';
+import { AlertTriangle } from 'lucide-react';
 import { api, ApiError, clearToken, getToken } from '@/lib/api';
 import { AdminNav } from '@/components/admin/AdminNav';
 import { VerificationBadge } from '@/components/VerificationBadge';
+import { PageHeader } from '@/components/ui/page-header';
+import { Card } from '@/components/ui/card';
+import { Badge, type BadgeTone } from '@/components/ui/badge';
+import { EmptyState } from '@/components/ui/empty-state';
 import type { AdminProjectRow, ProjectStatus } from '@/lib/types';
 
 const FILTERS: (ProjectStatus | 'ALL')[] = ['ALL', 'PUBLISHED', 'PENDING_REVIEW', 'CHANGES_REQUESTED', 'DRAFT'];
+
+const STATUS_TONE: Record<ProjectStatus, BadgeTone> = {
+  PUBLISHED: 'approved',
+  PENDING_REVIEW: 'pending',
+  CHANGES_REQUESTED: 'rejected',
+  DRAFT: 'neutral',
+};
 
 export default function AdminProjectsPage() {
   const router = useRouter();
@@ -52,31 +65,33 @@ export default function AdminProjectsPage() {
   );
 
   return (
-    <div className="max-w-6xl mx-auto p-8">
+    <div className="mx-auto max-w-6xl space-y-6 p-8">
       <AdminNav />
 
-      <header className="mb-4">
-        <h1 className="text-2xl font-bold text-gray-900">Projects</h1>
-        <p className="text-gray-600 mt-1">
-          Every project across every organisation, with the standing of whoever owns it.
-        </p>
-      </header>
+      <PageHeader
+        eyebrow="Admin"
+        title="Projects"
+        description="Every project across every organisation, with the standing of whoever owns it."
+      />
 
       {needsAttention.length > 0 && (
-        <div className="mb-4 rounded-lg border border-amber-300 bg-amber-50 p-3 text-sm text-amber-900">
-          {needsAttention.length} published{' '}
-          {needsAttention.length === 1 ? 'project belongs' : 'projects belong'} to an organisation
-          that is not approved.
+        <div className="flex items-start gap-3 rounded-sm border border-status-pending/40 bg-status-pending/10 p-3 text-sm text-status-pending">
+          <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" aria-hidden />
+          <span>
+            {needsAttention.length} published{' '}
+            {needsAttention.length === 1 ? 'project belongs' : 'projects belong'} to an organisation
+            that is not approved.
+          </span>
         </div>
       )}
 
-      <div className="flex gap-3 items-center mb-4">
-        <label className="text-sm text-gray-700">
+      <div className="flex flex-wrap items-center gap-3">
+        <label className="font-mono text-xs uppercase tracking-wide text-muted">
           Status{' '}
           <select
             value={filter}
             onChange={(e) => setFilter(e.target.value as ProjectStatus | 'ALL')}
-            className="ml-1 rounded border border-gray-300 px-2 py-1"
+            className="ml-1 rounded-sm border border-line bg-[#FFFDF7] px-2 py-1 text-sm normal-case tracking-normal text-ink"
           >
             {FILTERS.map((f) => (
               <option key={f} value={f}>
@@ -85,72 +100,71 @@ export default function AdminProjectsPage() {
             ))}
           </select>
         </label>
-        <span className="text-sm text-gray-500">{rows === null ? '' : `${rows.length} total`}</span>
+        <span className="text-sm text-muted">{rows === null ? '' : `${rows.length} total`}</span>
       </div>
 
-      {error && <div className="bg-red-100 text-red-700 p-3 rounded mb-4">{error}</div>}
+      {error && (
+        <div className="rounded-sm border border-status-rejected/40 bg-status-rejected/10 p-3 text-sm text-status-rejected">
+          {error}
+        </div>
+      )}
 
       {rows === null ? (
-        <p className="text-gray-500">Loading…</p>
+        <p className="text-muted">Loading…</p>
       ) : rows.length === 0 ? (
-        <div className="text-center py-14 text-gray-500 border border-dashed border-gray-300 rounded-lg">
-          <p className="text-lg mb-1">No projects</p>
-          <p className="text-sm">
-            {filter === 'ALL'
+        <EmptyState
+          title="No projects"
+          description={
+            filter === 'ALL'
               ? 'No organisation has created a project yet.'
-              : `No projects are currently ${filter.toLowerCase()}.`}
-          </p>
-        </div>
+              : `No projects are currently ${filter.toLowerCase()}.`
+          }
+        />
       ) : (
-        <div className="overflow-x-auto">
-          <table className="w-full text-sm border border-gray-200 rounded-lg">
-            <thead className="bg-gray-50 text-left">
+        <Card className="overflow-x-auto">
+          <table className="w-full text-sm">
+            <thead className="border-b-2 border-line text-left font-mono text-xs uppercase tracking-wide text-muted">
               <tr>
-                <th className="px-3 py-2 font-medium">Project</th>
-                <th className="px-3 py-2 font-medium">Organisation</th>
-                <th className="px-3 py-2 font-medium">Org status</th>
-                <th className="px-3 py-2 font-medium">Project status</th>
-                <th className="px-3 py-2 font-medium">Funded by</th>
-                <th className="px-3 py-2 font-medium">Created</th>
+                <th className="px-4 py-3 font-medium">Project</th>
+                <th className="px-4 py-3 font-medium">Organisation</th>
+                <th className="px-4 py-3 font-medium">Org status</th>
+                <th className="px-4 py-3 font-medium">Project status</th>
+                <th className="px-4 py-3 font-medium">Funded by</th>
+                <th className="px-4 py-3 font-medium">Created</th>
               </tr>
             </thead>
             <tbody>
-              {rows.map((r) => (
-                <tr key={r.id} className="border-t border-gray-200">
-                  <td className="px-3 py-2">
-                    <span className="font-medium text-gray-900">{r.title}</span>
-                    <p className="text-xs text-gray-500 mt-0.5 max-w-md truncate">{r.summary}</p>
+              {rows.map((r, i) => (
+                <motion.tr
+                  key={r.id}
+                  initial={{ opacity: 0 }}
+                  whileInView={{ opacity: 1 }}
+                  viewport={{ once: true }}
+                  transition={{ duration: 0.25, delay: Math.min(i, 10) * 0.02 }}
+                  className="border-t border-line"
+                >
+                  <td className="px-4 py-3">
+                    <span className="font-medium text-navy">{r.title}</span>
+                    <p className="mt-0.5 max-w-md truncate text-xs text-muted">{r.summary}</p>
                   </td>
-                  <td className="px-3 py-2 text-gray-800">{r.org_name}</td>
-                  <td className="px-3 py-2">
+                  <td className="px-4 py-3 text-ink">{r.org_name}</td>
+                  <td className="px-4 py-3">
                     <VerificationBadge status={r.org_verification_status} />
                   </td>
-                  <td className="px-3 py-2">
-                    <span
-                      className={`text-xs rounded px-2 py-0.5 ${
-                        r.status === 'PUBLISHED'
-                          ? 'bg-green-100 text-green-800'
-                          : r.status === 'PENDING_REVIEW'
-                            ? 'bg-amber-100 text-amber-800'
-                            : r.status === 'CHANGES_REQUESTED'
-                              ? 'bg-red-100 text-red-700'
-                              : 'bg-gray-100 text-gray-700'
-                      }`}
-                    >
-                      {r.status}
-                    </span>
+                  <td className="px-4 py-3">
+                    <Badge tone={STATUS_TONE[r.status]}>{r.status}</Badge>
                   </td>
-                  <td className="px-3 py-2 text-gray-600">
-                    {r.campaign_id ? 'A campaign' : <span className="text-gray-400">No campaign</span>}
+                  <td className="px-4 py-3 text-muted">
+                    {r.campaign_id ? 'A campaign' : <span className="text-muted/70">No campaign</span>}
                   </td>
-                  <td className="px-3 py-2 text-gray-600">
+                  <td className="px-4 py-3 text-muted">
                     {new Date(r.created_at).toLocaleDateString()}
                   </td>
-                </tr>
+                </motion.tr>
               ))}
             </tbody>
           </table>
-        </div>
+        </Card>
       )}
     </div>
   );

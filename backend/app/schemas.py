@@ -494,6 +494,7 @@ class WebsiteExtractOut(BaseModel):
     mission_statements: list[str] = []
     vision: str | None = None
     founded_year: int | None = None
+    sectors: list[str] = []
 
 
 class ProposalMessageIn(BaseModel):

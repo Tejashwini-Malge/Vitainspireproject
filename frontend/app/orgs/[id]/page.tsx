@@ -4,6 +4,10 @@ import { useParams, useRouter } from "next/navigation";
 import { FormEvent, useCallback, useEffect, useState } from "react";
 import { OrgNav } from "@/components/OrgNav";
 import { VerificationBadge } from "@/components/VerificationBadge";
+import { Button } from "@/components/ui/button";
+import { Card } from "@/components/ui/card";
+import { Input } from "@/components/ui/input";
+import { PageHeader } from "@/components/ui/page-header";
 import { api, ApiError, clearToken, getToken } from "@/lib/api";
 import type { Me, Member, Org, Role } from "@/lib/types";
 
@@ -85,31 +89,32 @@ export default function OrgPage() {
 
   return (
     <div className="space-y-10">
-      <header className="space-y-2">
-        <h1 className="text-2xl font-semibold text-navy">{org.name}</h1>
-        <p className="text-muted">
-          {org.org_type} · <VerificationBadge status={org.verification_status} />
-        </p>
+      <div className="space-y-3">
+        <PageHeader
+          eyebrow={org.org_type}
+          title={org.name}
+          description={<VerificationBadge status={org.verification_status} />}
+        />
         {org.verification_status === "REJECTED" && org.verification_reason && (
           <p className="text-sm text-status-rejected">Reason given by the reviewer: {org.verification_reason}</p>
         )}
         <OrgNav orgId={id} showNgoTabs={org.org_type === "NGO"} />
-      </header>
+      </div>
 
       <section aria-labelledby="members-heading" className="space-y-4">
         <h2 id="members-heading" className="text-lg font-semibold text-navy">
           Members
         </h2>
-        <ul className="divide-y-2 divide-line rounded-sm border-2 border-line bg-white">
+        <Card className="divide-y divide-line">
           {members.map((m) => (
-            <li key={m.user_id} className="flex justify-between px-4 py-3">
+            <div key={m.user_id} className="flex justify-between px-4 py-3">
               <span>
                 {m.full_name} <span className="text-sm text-muted">{m.email}</span>
               </span>
               <span className="text-sm font-medium">{m.role}</span>
-            </li>
+            </div>
           ))}
-        </ul>
+        </Card>
       </section>
 
       {canManage ? (
@@ -121,22 +126,20 @@ export default function OrgPage() {
           <form onSubmit={onAdd} className="grid gap-4 md:grid-cols-[1fr_auto_auto] md:items-end">
             <label className="block">
               <span className="text-sm font-medium">Email</span>
-              <input type="email" required value={email} onChange={(e) => setEmail(e.target.value)}
-                className="mt-1 w-full rounded-sm border-2 border-line bg-white px-3 py-2" />
+              <Input type="email" required value={email} onChange={(e) => setEmail(e.target.value)} className="mt-1" />
             </label>
             <label className="block">
               <span className="text-sm font-medium">Role</span>
               <select value={role} onChange={(e) => setRole(e.target.value as Role)}
-                className="mt-1 w-full rounded-sm border-2 border-line bg-white px-3 py-2">
+                className="mt-1 w-full rounded-sm border border-line bg-[#FFFDF7] px-3 py-2 text-ink">
                 <option value="MEMBER">Member</option>
                 <option value="ADMIN">Admin</option>
                 {myRole === "OWNER" && <option value="OWNER">Owner</option>}
               </select>
             </label>
-            <button type="submit" disabled={adding}
-              className="rounded-sm bg-teal px-4 py-2 font-display font-medium text-paper disabled:opacity-60">
+            <Button type="submit" disabled={adding}>
               {adding ? "Adding…" : "Add"}
-            </button>
+            </Button>
           </form>
           {addError && (
             <p role="alert" className="text-sm text-status-rejected">

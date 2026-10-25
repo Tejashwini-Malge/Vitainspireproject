@@ -19,6 +19,86 @@ class WebsiteData:
     title: Optional[str] = None
     description: Optional[str] = None
     raw_text: Optional[str] = None
+    sectors: list[str] = field(default_factory=list)
+
+
+# Maps each sector option to keywords that indicate an NGO works in it.
+# Lists lean broad (real-world phrasing, not just formal sector names) since
+# extracted site copy rarely uses the exact sector label.
+SECTOR_KEYWORDS: dict[str, list[str]] = {
+    "Agriculture": [
+        "agriculture", "farmer", "farming", "crop", "agri-", "agribusiness",
+        "smallholder", "irrigation", "seed", "harvest", "livestock", "agronomy",
+    ],
+    "Arts & Culture": [
+        "arts & culture", "art and culture", "heritage arts", "cultural heritage",
+        "performing arts", "handicraft", "museum", "artisan", "folk art", "theatre", "theater",
+    ],
+    "Disability": [
+        "disability", "disabilities", "differently abled", "special needs",
+        "inclusive education", "persons with disabilities", "accessib", "wheelchair", "visually impaired",
+    ],
+    "Disaster Relief": [
+        "disaster relief", "disaster response", "humanitarian aid", "humanitarian",
+        "flood relief", "earthquake relief", "emergency relief", "emergency response",
+        "conflict", "war", "crisis", "displaced", "refugee", "evacuation",
+    ],
+    "Education": [
+        "education", "school", "literacy", "learning center", "learning centre",
+        "vocational training", "scholarship", "classroom", "student", "teacher", "curriculum",
+    ],
+    "Environment": [
+        "environment", "climate", "conservation", "biodiversity", "reforestation",
+        "sustainability", "wildlife", "deforestation", "renewable energy", "carbon", "ecosystem",
+    ],
+    "Food Security": [
+        "food security", "malnutrition", "hunger", "nutrition", "food bank",
+        "famine", "food assistance", "access to food", "meals", "food aid", "malnourished",
+    ],
+    "Gender Equality": [
+        "gender equality", "women empowerment", "women's rights", "girl child",
+        "gender-based violence", "gender equity", "women and girls", "female empowerment",
+    ],
+    "Health": [
+        "health", "healthcare", "medical", "clinic", "hospital", "wellbeing",
+        "telemedicine", "disease", "vaccination", "mental health", "maternal health", "patient",
+    ],
+    "Heritage": [
+        "heritage", "monument", "historic preservation", "cultural heritage site",
+        "historical site", "archaeological", "heritage conservation",
+    ],
+    "Livelihoods": [
+        "livelihood", "income generation", "skill development", "self-help group",
+        "microfinance", "employment", "job training", "entrepreneurship", "economic empowerment",
+    ],
+    "Rural Infrastructure": [
+        "rural infrastructure", "rural development", "road connectivity",
+        "electrification", "rural communities", "last mile", "village development",
+    ],
+    "Sanitation": [
+        "sanitation", "hygiene", "toilet", "open defecation", "swachh", "handwashing",
+    ],
+    "Water": [
+        "water", "clean water", "drinking water", "well", "borewell",
+        "water scarcity", "water access", "safe water", "wash program",
+    ],
+}
+
+
+def _extract_sectors(text: str) -> list[str]:
+    """Infer which sectors an NGO works in based on keyword matches in the page text."""
+    text_lower = text.lower()
+    matches = []
+    for sector, keywords in SECTOR_KEYWORDS.items():
+        for kw in keywords:
+            # Word-boundary match (with an optional trailing "s" for simple
+            # plurals like "livelihoods") so short keywords (e.g. "water",
+            # "well") don't fire on unrelated words like "watermark" or "wellness".
+            pattern = r"\b" + re.escape(kw) + r"s?\b"
+            if re.search(pattern, text_lower):
+                matches.append(sector)
+                break
+    return matches
 
 
 def _extract_year(text: str) -> Optional[int]:
@@ -196,6 +276,12 @@ async def fetch_website(url: str) -> Optional[WebsiteData]:
         # Extract multiple mission statements
         mission_statements = _extract_mission_statements(html)
 
+        # Infer sectors from the combined extracted text
+        sector_source = " ".join(
+            filter(None, [full_text, mission, vision, about, meta_desc])
+        )
+        sectors = _extract_sectors(sector_source)
+
         return WebsiteData(
             about=about,
             mission=mission,
@@ -205,6 +291,7 @@ async def fetch_website(url: str) -> Optional[WebsiteData]:
             title=title,
             description=meta_desc,
             raw_text=full_text[:2000],
+            sectors=sectors,
         )
 
     except Exception:

@@ -2,9 +2,14 @@
 
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
+import { motion } from 'framer-motion';
 import { useRouter } from 'next/navigation';
 import { api, getToken } from '@/lib/api';
 import NotificationBell from '@/components/NotificationBell';
+import { PageHeader } from '@/components/ui/page-header';
+import { Card } from '@/components/ui/card';
+import { Badge, type BadgeTone } from '@/components/ui/badge';
+import { EmptyState } from '@/components/ui/empty-state';
 
 interface Proposal {
   id: string;
@@ -15,6 +20,21 @@ interface Proposal {
   problem_statement: string;
   budget_requested: number;
   created_at: string;
+}
+
+const STATUS_TONE: Record<string, BadgeTone> = {
+  APPROVED: 'approved',
+  ADMIN_REJECTED: 'rejected',
+  CHANGES_REQUESTED: 'rejected',
+  SUBMITTED: 'pending',
+  PENDING_CSR: 'pending',
+};
+
+function statusLabel(status: string): string {
+  if (status === 'SUBMITTED') return 'Awaiting Imparency review';
+  if (status === 'PENDING_CSR') return 'Awaiting CSR review';
+  if (status === 'ADMIN_REJECTED') return 'Not accepted by Imparency';
+  return status;
 }
 
 export default function NGOProposalsPage() {
@@ -34,84 +54,94 @@ export default function NGOProposalsPage() {
       .finally(() => setLoading(false));
   }, [router]);
 
-  if (loading) return <div className="p-8">Loading...</div>;
+  if (loading) return <p className="text-muted">Loading proposals…</p>;
 
   return (
-    <div className="max-w-6xl mx-auto p-8">
-      <div className="flex justify-between items-center mb-8">
-        <h1 className="text-4xl font-bold">My Proposals</h1>
-        <div className="flex gap-4 items-center">
-          <NotificationBell />
-          <Link
-            href="/ngo/proposals/create"
-            className="bg-blue-600 text-white px-6 py-2 rounded-lg hover:bg-blue-700"
-          >
-            Submit Proposal
-          </Link>
-        </div>
-      </div>
+    <div className="space-y-8">
+      <PageHeader
+        eyebrow="NGO"
+        title="My Proposals"
+        action={
+          <div className="flex items-center gap-4">
+            <NotificationBell />
+            <Link
+              href="/ngo/proposals/create"
+              className="inline-flex items-center justify-center gap-2 rounded-sm bg-teal px-5 py-2.5 font-display text-sm font-medium text-paper shadow-sm transition-all hover:opacity-90 hover:shadow-md"
+            >
+              Submit Proposal
+            </Link>
+          </div>
+        }
+      />
 
-      {error && <div className="bg-red-100 text-red-700 p-4 rounded mb-4">{error}</div>}
+      {error && (
+        <div role="alert" className="rounded-sm border-2 border-status-rejected bg-white p-4 text-sm text-status-rejected">
+          {error}
+        </div>
+      )}
 
       {proposals.length === 0 ? (
-        <div className="text-center py-12 text-gray-500">
-          <p className="text-xl mb-4">No proposals yet</p>
-          <Link href="/ngo/proposals/create" className="text-blue-600 underline">
-            Submit your first proposal
-          </Link>
-        </div>
+        <EmptyState
+          title="No proposals yet"
+          description="Submit your first proposal to a published opportunity."
+          action={
+            <Link
+              href="/ngo/proposals/create"
+              className="inline-flex items-center justify-center gap-2 rounded-sm bg-teal px-5 py-2.5 font-display text-sm font-medium text-paper shadow-sm transition-all hover:opacity-90 hover:shadow-md"
+            >
+              Submit your first proposal
+            </Link>
+          }
+        />
       ) : (
-        <div className="space-y-4">
-          {proposals.map(proposal => (
-            <div key={proposal.id} className="border rounded-lg p-6 hover:shadow-lg transition bg-white">
-              <div className="flex justify-between items-start mb-4">
-                <div>
-                  <h2 className="text-2xl font-bold mb-2">Proposal v{proposal.version_num}</h2>
-                  <p className="text-gray-600">{proposal.problem_statement.substring(0, 100)}...</p>
+        <ul className="space-y-4">
+          {proposals.map((proposal, i) => (
+            <motion.li
+              key={proposal.id}
+              initial={{ opacity: 0, y: 12 }}
+              whileInView={{ opacity: 1, y: 0 }}
+              viewport={{ once: true }}
+              transition={{ duration: 0.3, delay: i * 0.05 }}
+            >
+              <Card interactive className="p-6">
+                <div className="mb-4 flex items-start justify-between gap-4">
+                  <div>
+                    <h2 className="font-display text-xl font-semibold text-navy">
+                      Proposal v{proposal.version_num}
+                    </h2>
+                    <p className="mt-1 text-sm text-muted">{proposal.problem_statement.substring(0, 100)}...</p>
+                  </div>
+                  <Badge tone={STATUS_TONE[proposal.status] ?? 'neutral'}>{statusLabel(proposal.status)}</Badge>
                 </div>
-                <span
-                  className={`px-4 py-2 rounded-full font-semibold whitespace-nowrap ${
-                    proposal.status === 'APPROVED'
-                      ? 'bg-green-100 text-green-800'
-                      : proposal.status === 'ADMIN_REJECTED' || proposal.status === 'CHANGES_REQUESTED'
-                      ? 'bg-red-100 text-red-800'
-                      : proposal.status === 'SUBMITTED'
-                      ? 'bg-amber-100 text-amber-800'
-                      : 'bg-blue-100 text-blue-800'
-                  }`}
-                >
-                  {proposal.status === 'SUBMITTED'
-                    ? 'Awaiting Imparency review'
-                    : proposal.status === 'PENDING_CSR'
-                    ? 'Awaiting CSR review'
-                    : proposal.status === 'ADMIN_REJECTED'
-                    ? 'Not accepted by Imparency'
-                    : proposal.status}
-                </span>
-              </div>
 
-              <div className="grid grid-cols-2 gap-4 mb-6 text-sm">
-                <div>
-                  <span className="font-semibold">Budget Requested:</span> ₹{(proposal.budget_requested / 100000).toFixed(1)}L
+                <div className="mb-6 grid grid-cols-2 gap-4 text-sm">
+                  <div>
+                    <span className="font-semibold text-navy">Budget Requested:</span>{' '}
+                    <span className="text-ink">₹{(proposal.budget_requested / 100000).toFixed(1)}L</span>
+                  </div>
+                  <div>
+                    <span className="font-semibold text-navy">Submitted:</span>{' '}
+                    <span className="text-ink">{new Date(proposal.created_at).toLocaleDateString()}</span>
+                  </div>
                 </div>
-                <div>
-                  <span className="font-semibold">Submitted:</span> {new Date(proposal.created_at).toLocaleDateString()}
-                </div>
-              </div>
 
-              <div className="flex gap-3">
-                <Link href={`/ngo/proposals/${proposal.id}`} className="text-blue-600 hover:underline font-medium">
-                  View Details
-                </Link>
-                {(proposal.status === 'CHANGES_REQUESTED' || proposal.status === 'ADMIN_REJECTED') && (
-                  <Link href={`/ngo/proposals/${proposal.id}/edit`} className="text-orange-600 hover:underline font-medium">
-                    Update Proposal
+                <div className="flex gap-4">
+                  <Link href={`/ngo/proposals/${proposal.id}`} className="text-sm font-medium text-teal hover:underline">
+                    View Details
                   </Link>
-                )}
-              </div>
-            </div>
+                  {(proposal.status === 'CHANGES_REQUESTED' || proposal.status === 'ADMIN_REJECTED') && (
+                    <Link
+                      href={`/ngo/proposals/${proposal.id}/edit`}
+                      className="text-sm font-medium text-status-pending hover:underline"
+                    >
+                      Update Proposal
+                    </Link>
+                  )}
+                </div>
+              </Card>
+            </motion.li>
           ))}
-        </div>
+        </ul>
       )}
     </div>
   );

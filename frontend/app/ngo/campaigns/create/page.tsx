@@ -6,6 +6,8 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { Card } from '@/components/ui/card';
+import { PageHeader } from '@/components/ui/page-header';
+import { cn } from '@/components/ui/cn';
 
 interface CampaignStep {
   step: number;
@@ -122,141 +124,136 @@ export default function CreateCampaignPage() {
   };
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-blue-50 to-green-50">
-      {/* Header */}
-      <div className="bg-white border-b sticky top-0 z-10">
-        <div className="max-w-4xl mx-auto px-4 py-6">
-          <h1 className="text-3xl font-bold text-gray-900">Create a Campaign</h1>
-          <p className="text-gray-600 mt-1">Make a real impact. Tell your story. Get funded.</p>
-        </div>
-      </div>
+    <div className="space-y-8">
+      <PageHeader
+        eyebrow="NGO"
+        title="Create a Campaign"
+        description="Make a real impact. Tell your story. Get funded."
+      />
 
-      <div className="max-w-4xl mx-auto px-4 py-8">
-        <div className="grid grid-cols-1 lg:grid-cols-4 gap-8">
-          {/* Sidebar - Steps */}
-          <div className="lg:col-span-1">
-            <div className="sticky top-24">
-              <h3 className="text-sm font-semibold text-gray-900 uppercase tracking-wide mb-4">
-                Campaign Setup
-              </h3>
-              <nav className="space-y-2">
-                {steps.map((s) => (
-                  <button
-                    key={s.step}
-                    onClick={() => setCurrentStep(s.step)}
-                    className={`w-full text-left px-4 py-2 rounded-lg transition ${
-                      currentStep === s.step
-                        ? 'bg-blue-100 text-blue-900 font-semibold'
-                        : 'text-gray-700 hover:bg-gray-100'
-                    }`}
-                  >
-                    <div className="flex items-center gap-3">
-                      <div
-                        className={`w-8 h-8 rounded-full flex items-center justify-center text-sm font-bold ${
-                          s.step < currentStep
-                            ? 'bg-green-500 text-white'
-                            : currentStep === s.step
-                            ? 'bg-blue-600 text-white'
-                            : 'bg-gray-200 text-gray-700'
-                        }`}
-                      >
-                        {s.step < currentStep ? '✓' : s.step}
-                      </div>
-                      <div className="flex-1">
-                        <p className="text-sm font-medium">{s.title}</p>
-                      </div>
+      <div className="grid grid-cols-1 gap-8 lg:grid-cols-4">
+        {/* Sidebar - Steps */}
+        <div className="lg:col-span-1">
+          <div className="sticky top-24">
+            <h3 className="mb-4 font-mono text-xs uppercase tracking-[0.18em] text-muted">
+              Campaign Setup
+            </h3>
+            <nav className="space-y-2">
+              {steps.map((s) => (
+                <button
+                  key={s.step}
+                  type="button"
+                  onClick={() => setCurrentStep(s.step)}
+                  className={cn(
+                    'w-full rounded-sm px-4 py-2 text-left transition-colors',
+                    currentStep === s.step ? 'bg-navy/10 font-semibold text-navy' : 'text-muted hover:bg-navy/5',
+                  )}
+                >
+                  <div className="flex items-center gap-3">
+                    <div
+                      className={cn(
+                        'flex h-8 w-8 items-center justify-center rounded-full font-mono text-sm font-bold',
+                        s.step < currentStep
+                          ? 'bg-status-approved text-paper'
+                          : currentStep === s.step
+                          ? 'bg-navy text-paper'
+                          : 'bg-navy/10 text-muted',
+                      )}
+                    >
+                      {s.step < currentStep ? '✓' : s.step}
                     </div>
-                  </button>
-                ))}
-              </nav>
-            </div>
-          </div>
-
-          {/* Main Content */}
-          <div className="lg:col-span-3">
-            <Card className="bg-white">
-              {/* Step 1: Campaign Basics */}
-              {currentStep === 1 && (
-                <div className="p-8">
-                  <h2 className="text-2xl font-bold text-gray-900 mb-6">Campaign Basics</h2>
-                  <div className="space-y-6">
-                    <div>
-                      <label className="block text-sm font-medium text-gray-900 mb-2">
-                        Campaign Title
-                      </label>
-                      <Input
-                        name="title"
-                        value={form.title}
-                        onChange={handleInputChange}
-                        placeholder="e.g., Clean Water for 50 Villages"
-                        className="text-base"
-                      />
-                      <p className="text-xs text-gray-500 mt-1">10-300 characters. Make it compelling!</p>
-                    </div>
-
-                    <div>
-                      <label className="block text-sm font-medium text-gray-900 mb-2">
-                        Campaign Mission (One-liner)
-                      </label>
-                      <Input
-                        name="mission"
-                        value={form.mission}
-                        onChange={handleInputChange}
-                        placeholder="e.g., Provide clean drinking water to rural communities"
-                        className="text-base"
-                      />
-                      <p className="text-xs text-gray-500 mt-1">5-500 characters. The essence of your cause.</p>
-                    </div>
-
-                    <div>
-                      <label className="block text-sm font-medium text-gray-900 mb-2">
-                        Full Campaign Description
-                      </label>
-                      <Textarea
-                        name="description"
-                        value={form.description}
-                        onChange={handleInputChange}
-                        placeholder="Tell your story... Why does this matter? What's the problem? How will you solve it?"
-                        rows={6}
-                        className="text-base"
-                      />
-                      <p className="text-xs text-gray-500 mt-1">50-5000 characters. Be detailed and authentic.</p>
-                    </div>
-
-                    <div>
-                      <label className="block text-sm font-medium text-gray-900 mb-2">
-                        Hero Image URL
-                      </label>
-                      <Input
-                        name="heroImageUrl"
-                        value={form.heroImageUrl}
-                        onChange={handleInputChange}
-                        placeholder="https://example.com/image.jpg"
-                        type="url"
-                        className="text-base"
-                      />
-                      <p className="text-xs text-gray-500 mt-1">High-impact image for campaign cover</p>
+                    <div className="flex-1">
+                      <p className="text-sm font-medium">{s.title}</p>
                     </div>
                   </div>
+                </button>
+              ))}
+            </nav>
+          </div>
+        </div>
 
-                  <div className="flex gap-4 mt-8">
-                    <Button
-                      onClick={() => setCurrentStep(2)}
-                      className="flex-1 bg-blue-600 hover:bg-blue-700 text-white"
-                    >
-                      Continue
-                    </Button>
+        {/* Main Content */}
+        <div className="lg:col-span-3">
+          <Card>
+            {/* Step 1: Campaign Basics */}
+            {currentStep === 1 && (
+              <div className="p-8">
+                <h2 className="mb-6 font-display text-2xl font-semibold text-navy">Campaign Basics</h2>
+                <div className="space-y-6">
+                  <div>
+                    <label className="mb-2 block text-sm font-medium text-navy">
+                      Campaign Title
+                    </label>
+                    <Input
+                      name="title"
+                      value={form.title}
+                      onChange={handleInputChange}
+                      placeholder="e.g., Clean Water for 50 Villages"
+                      className="text-base"
+                    />
+                    <p className="mt-1 text-xs text-muted">10-300 characters. Make it compelling!</p>
+                  </div>
+
+                  <div>
+                    <label className="mb-2 block text-sm font-medium text-navy">
+                      Campaign Mission (One-liner)
+                    </label>
+                    <Input
+                      name="mission"
+                      value={form.mission}
+                      onChange={handleInputChange}
+                      placeholder="e.g., Provide clean drinking water to rural communities"
+                      className="text-base"
+                    />
+                    <p className="mt-1 text-xs text-muted">5-500 characters. The essence of your cause.</p>
+                  </div>
+
+                  <div>
+                    <label className="mb-2 block text-sm font-medium text-navy">
+                      Full Campaign Description
+                    </label>
+                    <Textarea
+                      name="description"
+                      value={form.description}
+                      onChange={handleInputChange}
+                      placeholder="Tell your story... Why does this matter? What's the problem? How will you solve it?"
+                      rows={6}
+                      className="text-base"
+                    />
+                    <p className="mt-1 text-xs text-muted">50-5000 characters. Be detailed and authentic.</p>
+                  </div>
+
+                  <div>
+                    <label className="mb-2 block text-sm font-medium text-navy">
+                      Hero Image URL
+                    </label>
+                    <Input
+                      name="heroImageUrl"
+                      value={form.heroImageUrl}
+                      onChange={handleInputChange}
+                      placeholder="https://example.com/image.jpg"
+                      type="url"
+                      className="text-base"
+                    />
+                    <p className="mt-1 text-xs text-muted">High-impact image for campaign cover</p>
                   </div>
                 </div>
-              )}
+
+                <div className="mt-8 flex gap-4">
+                  <Button onClick={() => setCurrentStep(2)} variant="primary" className="flex-1">
+                    Continue
+                  </Button>
+                </div>
+              </div>
+            )}
 
               {/* Step 2: Impact & Beneficiaries */}
               {currentStep === 2 && (
                 <div className="p-8">
-                  <h2 className="text-2xl font-bold text-gray-900 mb-6">Impact & Beneficiaries</h2>
+                  <h2 className="mb-6 font-display text-2xl font-semibold text-navy">Impact & Beneficiaries</h2>
                   <div className="space-y-6">
                     <div>
-                      <label className="block text-sm font-medium text-gray-900 mb-2">
+                      <label className="mb-2 block text-sm font-medium text-navy">
                         How many people will benefit?
                       </label>
                       <Input
@@ -270,7 +267,7 @@ export default function CreateCampaignPage() {
                     </div>
 
                     <div>
-                      <label className="block text-sm font-medium text-gray-900 mb-2">
+                      <label className="mb-2 block text-sm font-medium text-navy">
                         Who are your beneficiaries? (Describe them clearly)
                       </label>
                       <Textarea
@@ -281,11 +278,11 @@ export default function CreateCampaignPage() {
                         rows={4}
                         className="text-base"
                       />
-                      <p className="text-xs text-gray-500 mt-1">Be specific! Who exactly will this help?</p>
+                      <p className="mt-1 text-xs text-muted">Be specific! Who exactly will this help?</p>
                     </div>
 
                     <div>
-                      <label className="block text-sm font-medium text-gray-900 mb-2">
+                      <label className="mb-2 block text-sm font-medium text-navy">
                         What impact will you create?
                       </label>
                       <Textarea
@@ -296,21 +293,22 @@ export default function CreateCampaignPage() {
                         rows={4}
                         className="text-base"
                       />
-                      <p className="text-xs text-gray-500 mt-1">Be measurable and realistic!</p>
+                      <p className="mt-1 text-xs text-muted">Be measurable and realistic!</p>
                     </div>
                   </div>
 
-                  <div className="flex gap-4 mt-8">
+                  <div className="mt-8 flex gap-4">
                     <Button
                       onClick={() => setCurrentStep(1)}
-                      variant="outline"
+                      variant="secondary"
                       className="flex-1"
                     >
                       Back
                     </Button>
                     <Button
                       onClick={() => setCurrentStep(3)}
-                      className="flex-1 bg-blue-600 hover:bg-blue-700 text-white"
+                      variant="primary"
+                      className="flex-1"
                     >
                       Continue
                     </Button>
@@ -321,11 +319,11 @@ export default function CreateCampaignPage() {
               {/* Step 3: Budget & Timeline */}
               {currentStep === 3 && (
                 <div className="p-8">
-                  <h2 className="text-2xl font-bold text-gray-900 mb-6">Budget & Timeline</h2>
+                  <h2 className="mb-6 font-display text-2xl font-semibold text-navy">Budget & Timeline</h2>
                   <div className="space-y-6">
                     <div className="grid grid-cols-2 gap-4">
                       <div>
-                        <label className="block text-sm font-medium text-gray-900 mb-2">
+                        <label className="mb-2 block text-sm font-medium text-navy">
                           Total Budget Needed
                         </label>
                         <div className="flex items-center gap-2">
@@ -337,12 +335,12 @@ export default function CreateCampaignPage() {
                             placeholder="500000"
                             className="text-base"
                           />
-                          <span className="text-sm font-semibold text-gray-600">INR</span>
+                          <span className="text-sm font-semibold text-muted">INR</span>
                         </div>
                       </div>
 
                       <div>
-                        <label className="block text-sm font-medium text-gray-900 mb-2">
+                        <label className="mb-2 block text-sm font-medium text-navy">
                           Campaign Duration
                         </label>
                         <div className="flex items-center gap-2">
@@ -355,23 +353,23 @@ export default function CreateCampaignPage() {
                             max="60"
                             className="text-base"
                           />
-                          <span className="text-sm font-semibold text-gray-600">months</span>
+                          <span className="text-sm font-semibold text-muted">months</span>
                         </div>
                       </div>
                     </div>
 
-                    <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
-                      <p className="text-sm font-semibold text-blue-900 mb-3">Budget Breakdown (Optional)</p>
-                      <p className="text-xs text-blue-700">
+                    <div className="rounded-sm border border-line bg-navy/5 p-4">
+                      <p className="mb-3 text-sm font-semibold text-navy">Budget Breakdown (Optional)</p>
+                      <p className="text-xs text-muted">
                         Help donors understand where their money goes. You can add this in the next step.
                       </p>
                     </div>
                   </div>
 
-                  <div className="flex gap-4 mt-8">
+                  <div className="mt-8 flex gap-4">
                     <Button
                       onClick={() => setCurrentStep(2)}
-                      variant="outline"
+                      variant="secondary"
                       className="flex-1"
                     >
                       Back
@@ -379,7 +377,8 @@ export default function CreateCampaignPage() {
                     <Button
                       onClick={handleCreateCampaign}
                       disabled={loading}
-                      className="flex-1 bg-green-600 hover:bg-green-700 text-white"
+                      variant="primary"
+                      className="flex-1"
                     >
                       {loading ? 'Creating...' : 'Create Campaign'}
                     </Button>
@@ -390,14 +389,14 @@ export default function CreateCampaignPage() {
               {/* Step 4 & 5 - Will show after campaign creation */}
               {(currentStep === 4 || currentStep === 5) && campaignId && (
                 <div className="p-8 text-center">
-                  <div className="text-green-600 text-5xl mb-4">✓</div>
-                  <h2 className="text-2xl font-bold text-gray-900 mb-2">Campaign Created!</h2>
-                  <p className="text-gray-600 mb-6">
+                  <div className="mb-4 text-5xl text-status-approved">✓</div>
+                  <h2 className="mb-2 font-display text-2xl font-semibold text-navy">Campaign Created!</h2>
+                  <p className="mb-6 text-muted">
                     Now add milestones and donation type options to make your campaign complete.
                   </p>
                   <Button
                     onClick={() => router.push(`/ngo/campaigns/${campaignId}/edit`)}
-                    className="bg-blue-600 hover:bg-blue-700 text-white"
+                    variant="primary"
                   >
                     Continue Setting Up
                   </Button>
@@ -405,13 +404,12 @@ export default function CreateCampaignPage() {
               )}
 
               {error && (
-                <div className="p-4 bg-red-50 border border-red-200 rounded-lg text-red-700 text-sm">
+                <div role="alert" className="m-6 rounded-sm border-2 border-status-rejected bg-white p-4 text-sm text-status-rejected">
                   {error}
                 </div>
               )}
             </Card>
           </div>
-        </div>
       </div>
     </div>
   );

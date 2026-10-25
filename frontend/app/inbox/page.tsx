@@ -5,6 +5,11 @@ import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { api, getToken } from '@/lib/api';
 import NotificationBell from '@/components/NotificationBell';
+import { PageHeader } from '@/components/ui/page-header';
+import { Card } from '@/components/ui/card';
+import { Badge } from '@/components/ui/badge';
+import { Button } from '@/components/ui/button';
+import { EmptyState } from '@/components/ui/empty-state';
 import type { InboxThread } from '@/lib/types';
 
 function relativeTime(iso: string | null): string {
@@ -63,52 +68,53 @@ export default function InboxPage() {
 
   const totalUnread = threads.reduce((sum, t) => sum + t.unread_count, 0);
 
-  if (loading) return <div className="p-8 text-gray-500">Loading your conversations…</div>;
+  if (loading) return <p className="mx-auto max-w-4xl p-8 text-muted">Loading your conversations…</p>;
 
   return (
-    <div className="max-w-4xl mx-auto p-8">
-      <div className="flex justify-between items-start mb-2">
-        <div>
-          <h1 className="text-3xl font-bold">Conversations</h1>
-          <p className="text-gray-600 mt-1">
-            {totalUnread > 0
-              ? `${totalUnread} unread message${totalUnread === 1 ? '' : 's'} waiting for you.`
-              : 'Everything here is up to date.'}
-          </p>
-        </div>
-        <div className="flex items-center gap-4">
-          <Link
-            href="/conversations/new"
-            className="rounded-md bg-blue-600 px-4 py-2 text-sm text-white hover:bg-blue-700"
-          >
-            Message platform staff
-          </Link>
-          <NotificationBell />
-        </div>
-      </div>
+    <div className="mx-auto max-w-4xl space-y-6 p-8">
+      <PageHeader
+        eyebrow="Inbox"
+        title="Conversations"
+        description={
+          totalUnread > 0
+            ? `${totalUnread} unread message${totalUnread === 1 ? '' : 's'} waiting for you.`
+            : 'Everything here is up to date.'
+        }
+        action={
+          <div className="flex items-center gap-4">
+            <Link href="/conversations/new">
+              <Button variant="primary" size="md">Message platform staff</Button>
+            </Link>
+            <NotificationBell />
+          </div>
+        }
+      />
 
-      <label className="inline-flex items-center gap-2 text-sm text-gray-700 my-4">
+      <label className="inline-flex items-center gap-2 text-sm text-ink">
         <input
           type="checkbox"
           checked={unreadOnly}
           onChange={(e) => setUnreadOnly(e.target.checked)}
+          className="h-4 w-4 rounded-sm border-line text-teal focus:ring-[var(--focus)]"
         />
         Only show conversations needing a reply
       </label>
 
-      {error && <div className="bg-red-100 text-red-700 p-4 rounded mb-4">{error}</div>}
+      {error && (
+        <p role="alert" className="rounded-sm border border-status-rejected/40 bg-status-rejected/10 p-4 text-status-rejected">
+          {error}
+        </p>
+      )}
 
       {threads.length === 0 ? (
-        <div className="text-center py-16 text-gray-500 border border-dashed border-gray-300 rounded-lg">
-          <p className="text-lg mb-1">
-            {unreadOnly ? 'Nothing is waiting on you' : 'No conversations yet'}
-          </p>
-          <p className="text-sm">
-            {unreadOnly
+        <EmptyState
+          title={unreadOnly ? 'Nothing is waiting on you' : 'No conversations yet'}
+          description={
+            unreadOnly
               ? 'Untick the filter above to see every conversation.'
-              : 'Proposal threads appear here automatically. You can also message platform staff at any time.'}
-          </p>
-        </div>
+              : 'Proposal threads appear here automatically. You can also message platform staff at any time.'
+          }
+        />
       ) : (
         <ul className="space-y-3">
           {threads.map((t) => {
@@ -128,54 +134,50 @@ export default function InboxPage() {
                       ? (t.kind === 'DONOR_ADMIN' ? 'Donor' : 'Organisation')
                       : 'Platform';
             return (
-              <li
-                key={t.thread_id}
-                className={`rounded-lg border p-4 ${
-                  t.unread_count > 0 ? 'border-blue-300 bg-blue-50' : 'border-gray-200 bg-white'
-                }`}
-              >
-                <div className="flex justify-between items-start gap-4">
-                  <div className="min-w-0">
-                    <div className="flex items-center gap-2 flex-wrap">
-                      <span className="font-semibold text-gray-900">{t.counterparty_name}</span>
-                      <span className="text-xs rounded bg-gray-200 px-2 py-0.5 text-gray-700">
-                        {sideLabel}
-                      </span>
-                      {t.unread_count > 0 && (
-                        <span className="text-xs rounded-full bg-blue-600 px-2 py-0.5 text-white">
-                          {t.unread_count} new
-                        </span>
-                      )}
+              <li key={t.thread_id}>
+                <Card
+                  interactive
+                  className={`p-4 ${t.unread_count > 0 ? 'border-teal/50 bg-teal/5' : ''}`}
+                >
+                  <div className="flex items-start justify-between gap-4">
+                    <div className="min-w-0">
+                      <div className="flex flex-wrap items-center gap-2">
+                        <span className="font-semibold text-navy">{t.counterparty_name}</span>
+                        <Badge tone="neutral">{sideLabel}</Badge>
+                        {t.unread_count > 0 && (
+                          <Badge tone="pending">{t.unread_count} new</Badge>
+                        )}
+                      </div>
+                      <p className="mt-0.5 truncate text-sm text-muted">{t.title}</p>
+                      <p className="mt-2 break-words text-ink">
+                        {t.last_message_preview ?? (
+                          <span className="italic text-muted">
+                            No messages yet — start the conversation.
+                          </span>
+                        )}
+                      </p>
                     </div>
-                    <p className="text-sm text-gray-600 mt-0.5 truncate">{t.title}</p>
-                    <p className="mt-2 text-gray-800 break-words">
-                      {t.last_message_preview ?? (
-                        <span className="text-gray-400 italic">
-                          No messages yet — start the conversation.
-                        </span>
-                      )}
-                    </p>
+                    <div className="shrink-0 text-right">
+                      <p className="font-mono text-xs text-muted">{relativeTime(t.last_message_at)}</p>
+                      <p className="mt-1 font-mono text-xs uppercase tracking-wide text-muted">{t.status}</p>
+                    </div>
                   </div>
-                  <div className="text-right shrink-0">
-                    <p className="text-xs text-gray-500">{relativeTime(t.last_message_at)}</p>
-                    <p className="text-xs text-gray-500 mt-1">{t.status}</p>
-                  </div>
-                </div>
 
-                <div className="mt-3 flex gap-4 items-center">
-                  <Link href={href} className="text-blue-600 text-sm hover:underline">
-                    Open conversation
-                  </Link>
-                  {t.unread_count > 0 && (
-                    <button
-                      type="button"
-                      onClick={() => markRead(t)}
-                      className="text-gray-600 text-sm hover:underline"
-                    >
-                      Mark as read
-                    </button>
-                  )}
-                </div>
+                  <div className="mt-3 flex items-center gap-4">
+                    <Link href={href} className="text-sm font-medium text-teal hover:underline">
+                      Open conversation
+                    </Link>
+                    {t.unread_count > 0 && (
+                      <button
+                        type="button"
+                        onClick={() => markRead(t)}
+                        className="text-sm font-medium text-muted hover:text-navy hover:underline"
+                      >
+                        Mark as read
+                      </button>
+                    )}
+                  </div>
+                </Card>
               </li>
             );
           })}

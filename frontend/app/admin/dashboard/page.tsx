@@ -3,22 +3,18 @@
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
+import { motion } from 'framer-motion';
+import { ShieldCheck, FileCheck2 } from 'lucide-react';
 import { api, ApiError, clearToken, getToken } from '@/lib/api';
 import { AdminNav } from '@/components/admin/AdminNav';
+import { StatCard } from '@/components/admin/StatCard';
+import { PageHeader } from '@/components/ui/page-header';
+import { Card } from '@/components/ui/card';
+import { cn } from '@/components/ui/cn';
 import type { AdminDashboard, AdminQueueItem, Org } from '@/lib/types';
 
 function rupees(minor: number): string {
   return `₹${Math.round(minor / 100).toLocaleString('en-IN')}`;
-}
-
-function Stat({ label, value, hint }: { label: string; value: string | number; hint?: string }) {
-  return (
-    <div className="rounded-lg border border-gray-200 bg-white p-4">
-      <p className="text-sm text-gray-600">{label}</p>
-      <p className="text-2xl font-semibold text-gray-900 mt-1">{value}</p>
-      {hint && <p className="text-xs text-gray-500 mt-1">{hint}</p>}
-    </div>
-  );
 }
 
 export default function AdminDashboardPage() {
@@ -62,88 +58,132 @@ export default function AdminDashboardPage() {
     })();
   }, [router]);
 
-  if (loading) return <div className="p-8 text-gray-500">Loading dashboard…</div>;
+  if (loading) {
+    return (
+      <div className="mx-auto max-w-6xl p-8">
+        <AdminNav />
+        <p className="text-muted">Loading dashboard…</p>
+      </div>
+    );
+  }
 
   const waiting = orgQueue.length + docQueue.length;
 
   return (
-    <div className="max-w-6xl mx-auto p-8">
+    <div className="mx-auto max-w-6xl space-y-8 p-8">
       <AdminNav />
 
-      <header className="mb-6">
-        <h1 className="text-2xl font-bold text-gray-900">Dashboard</h1>
-        <p className="text-gray-600 mt-1">
-          {waiting > 0
+      <PageHeader
+        eyebrow="Admin"
+        title="Dashboard"
+        description={
+          waiting > 0
             ? `${waiting} item${waiting === 1 ? '' : 's'} waiting on a reviewer.`
-            : 'Nothing is waiting on a reviewer right now.'}
-        </p>
-      </header>
+            : 'Nothing is waiting on a reviewer right now.'
+        }
+      />
 
-      {error && <div className="bg-amber-100 text-amber-900 p-3 rounded mb-4">{error}</div>}
+      {error && (
+        <div className="rounded-sm border border-status-pending/40 bg-status-pending/10 p-3 text-sm text-status-pending">
+          {error}
+        </div>
+      )}
 
-      <section aria-label="Waiting on you" className="grid gap-4 sm:grid-cols-2 mb-8">
+      <section aria-label="Waiting on you" className="grid gap-4 sm:grid-cols-2">
         <Link href="/admin" className="block">
-          <div className={`rounded-lg border p-4 ${orgQueue.length ? 'border-blue-300 bg-blue-50' : 'border-gray-200 bg-white'}`}>
-            <p className="text-sm text-gray-600">Organisations awaiting verification</p>
-            <p className="text-2xl font-semibold text-gray-900 mt-1">{orgQueue.length}</p>
-            <p className="text-xs text-blue-700 mt-1">Open the verification queue →</p>
-          </div>
+          <Card
+            interactive
+            className={cn(
+              'flex items-start gap-3 p-4',
+              orgQueue.length > 0 && 'border-teal/50 bg-teal/5',
+            )}
+          >
+            <ShieldCheck className="mt-0.5 h-5 w-5 shrink-0 text-teal" aria-hidden />
+            <div>
+              <p className="text-sm text-muted">Organisations awaiting verification</p>
+              <p className="mt-1 font-display text-2xl font-semibold text-navy">{orgQueue.length}</p>
+              <p className="mt-1 text-xs font-medium text-teal">Open the verification queue →</p>
+            </div>
+          </Card>
         </Link>
         <Link href="/admin/documents" className="block">
-          <div className={`rounded-lg border p-4 ${docQueue.length ? 'border-blue-300 bg-blue-50' : 'border-gray-200 bg-white'}`}>
-            <p className="text-sm text-gray-600">Documents awaiting review</p>
-            <p className="text-2xl font-semibold text-gray-900 mt-1">{docQueue.length}</p>
-            <p className="text-xs text-blue-700 mt-1">Open the document queue →</p>
-          </div>
+          <Card
+            interactive
+            className={cn(
+              'flex items-start gap-3 p-4',
+              docQueue.length > 0 && 'border-teal/50 bg-teal/5',
+            )}
+          >
+            <FileCheck2 className="mt-0.5 h-5 w-5 shrink-0 text-teal" aria-hidden />
+            <div>
+              <p className="text-sm text-muted">Documents awaiting review</p>
+              <p className="mt-1 font-display text-2xl font-semibold text-navy">{docQueue.length}</p>
+              <p className="mt-1 text-xs font-medium text-teal">Open the document queue →</p>
+            </div>
+          </Card>
         </Link>
       </section>
 
       {data && (
         <>
-          <section aria-label="Platform totals" className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3 mb-8">
-            <Stat label="NGOs" value={data.total_ngos} hint={`${data.verified_ngos} verified`} />
-            <Stat label="Campaigns" value={data.total_campaigns} hint={`${data.live_campaigns} live`} />
-            <Stat label="Donors" value={data.total_donors} />
-            <Stat label="Total raised" value={rupees(data.total_fundraising)} />
-            <Stat
-              label="Email queue"
-              value={data.email_queue_health.queue_depth}
-              hint={`${data.email_queue_health.failed_count} failed`}
-            />
-            <Stat
-              label="Email open rate"
-              value={`${Math.round(data.engagement.open_rate * 100)}%`}
-              hint={`${data.engagement.total_sent} sent`}
-            />
+          <section aria-label="Platform totals" className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+            {[
+              { label: 'NGOs', value: data.total_ngos, subtitle: `${data.verified_ngos} verified`, color: 'teal' as const },
+              { label: 'Campaigns', value: data.total_campaigns, subtitle: `${data.live_campaigns} live`, color: 'green' as const },
+              { label: 'Donors', value: data.total_donors, color: 'blue' as const },
+              { label: 'Total raised', value: rupees(data.total_fundraising), color: 'teal' as const },
+              {
+                label: 'Email queue',
+                value: data.email_queue_health.queue_depth,
+                subtitle: `${data.email_queue_health.failed_count} failed`,
+                color: 'orange' as const,
+              },
+              {
+                label: 'Email open rate',
+                value: `${Math.round(data.engagement.open_rate * 100)}%`,
+                subtitle: `${data.engagement.total_sent} sent`,
+                color: 'blue' as const,
+              },
+            ].map((stat, i) => (
+              <motion.div
+                key={stat.label}
+                initial={{ opacity: 0, y: 12 }}
+                whileInView={{ opacity: 1, y: 0 }}
+                viewport={{ once: true, margin: '-40px' }}
+                transition={{ duration: 0.35, delay: i * 0.05 }}
+              >
+                <StatCard label={stat.label} value={stat.value} subtitle={stat.subtitle} color={stat.color} />
+              </motion.div>
+            ))}
           </section>
 
-          <section aria-label="Top campaigns" className="mb-8">
-            <h2 className="text-lg font-semibold text-gray-900 mb-2">Top campaigns</h2>
+          <section aria-label="Top campaigns">
+            <h2 className="mb-3 font-display text-lg font-semibold text-navy">Top campaigns</h2>
             {data.top_campaigns.length === 0 ? (
-              <p className="text-sm text-gray-500">No campaigns have raised anything yet.</p>
+              <p className="text-sm text-muted">No campaigns have raised anything yet.</p>
             ) : (
-              <div className="overflow-x-auto">
-                <table className="w-full text-sm border border-gray-200 rounded-lg">
-                  <thead className="bg-gray-50 text-left">
+              <Card className="overflow-x-auto">
+                <table className="w-full text-sm">
+                  <thead className="border-b-2 border-line text-left font-mono text-xs uppercase tracking-wide text-muted">
                     <tr>
-                      <th className="px-3 py-2 font-medium">Campaign</th>
-                      <th className="px-3 py-2 font-medium">NGO</th>
-                      <th className="px-3 py-2 font-medium text-right">Raised</th>
-                      <th className="px-3 py-2 font-medium text-right">Donations</th>
+                      <th className="px-4 py-3 font-medium">Campaign</th>
+                      <th className="px-4 py-3 font-medium">NGO</th>
+                      <th className="px-4 py-3 text-right font-medium">Raised</th>
+                      <th className="px-4 py-3 text-right font-medium">Donations</th>
                     </tr>
                   </thead>
                   <tbody>
                     {data.top_campaigns.map((c) => (
-                      <tr key={c.campaign_id} className="border-t border-gray-200">
-                        <td className="px-3 py-2 text-gray-900">{c.title}</td>
-                        <td className="px-3 py-2 text-gray-600">{c.ngo_name}</td>
-                        <td className="px-3 py-2 text-right">{rupees(c.amount_raised)}</td>
-                        <td className="px-3 py-2 text-right">{c.donation_count}</td>
+                      <tr key={c.campaign_id} className="border-t border-line">
+                        <td className="px-4 py-3 font-medium text-navy">{c.title}</td>
+                        <td className="px-4 py-3 text-muted">{c.ngo_name}</td>
+                        <td className="px-4 py-3 text-right text-ink">{rupees(c.amount_raised)}</td>
+                        <td className="px-4 py-3 text-right text-ink">{c.donation_count}</td>
                       </tr>
                     ))}
                   </tbody>
                 </table>
-              </div>
+              </Card>
             )}
           </section>
         </>

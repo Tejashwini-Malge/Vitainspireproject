@@ -5,6 +5,11 @@ import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 import { api, ApiError, clearToken, getToken } from "@/lib/api";
 import type { RecurringDonation, Me } from "@/lib/types";
+import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import { Card } from "@/components/ui/card";
+import { EmptyState } from "@/components/ui/empty-state";
+import { PageHeader } from "@/components/ui/page-header";
 
 type PageState = "loading" | "error" | "ready";
 
@@ -89,7 +94,7 @@ export default function RecurringDonationsPage() {
   if (state === "error") {
     return (
       <div className="space-y-4">
-        <h1 className="text-2xl font-semibold text-navy">Recurring Donations</h1>
+        <PageHeader title="Recurring Donations" />
         <p role="alert" className="text-status-rejected">{error}</p>
       </div>
     );
@@ -98,7 +103,7 @@ export default function RecurringDonationsPage() {
   if (state === "loading") {
     return (
       <div className="space-y-4">
-        <h1 className="text-2xl font-semibold text-navy">Recurring Donations</h1>
+        <PageHeader title="Recurring Donations" />
         <p className="text-muted">Loading your donations...</p>
       </div>
     );
@@ -106,48 +111,24 @@ export default function RecurringDonationsPage() {
 
   return (
     <div className="space-y-8">
-      <div>
-        <h1 className="text-2xl font-semibold text-navy">Recurring Donations</h1>
-        <p className="mt-2 text-muted">
-          Manage your monthly, quarterly, or yearly donations
-        </p>
-      </div>
+      <PageHeader title="Recurring Donations" description="Manage your monthly, quarterly, or yearly donations" />
 
       {donations.length === 0 ? (
-        <div className="rounded-lg border-2 border-dashed border-line bg-paper p-8 text-center">
-          <div className="mb-4 text-4xl">💝</div>
-          <h2 className="mb-2 font-semibold text-navy">No Active Donations</h2>
-          <p className="mb-6 text-muted">
-            You haven't set up any recurring donations yet.
-          </p>
-          <Link
-            href="/campaigns"
-            className="inline-block rounded-sm bg-teal px-4 py-2 font-display font-medium text-paper hover:bg-teal/90"
-          >
-            Browse Campaigns
-          </Link>
-        </div>
+        <EmptyState
+          title="No active donations"
+          description="You haven't set up any recurring donations yet."
+          action={<Button onClick={() => router.push("/campaigns")}>Browse Campaigns</Button>}
+        />
       ) : (
         <div className="space-y-4">
           {donations.map((donation) => (
-            <div
-              key={donation.id}
-              className="rounded-lg border-2 border-line bg-white p-6"
-            >
+            <Card key={donation.id} className="p-6">
               <div className="flex items-start justify-between gap-4 md:flex-row">
                 <div className="flex-1">
                   <div className="mb-4 flex items-center gap-2">
-                    <span
-                      className={`rounded-full px-3 py-1 text-xs font-medium ${
-                        donation.status === "ACTIVE"
-                          ? "bg-teal/10 text-teal"
-                          : donation.status === "PAUSED"
-                            ? "bg-yellow-100 text-yellow-700"
-                            : "bg-gray-100 text-gray-700"
-                      }`}
-                    >
+                    <Badge tone={donation.status === "ACTIVE" ? "approved" : donation.status === "PAUSED" ? "pending" : "neutral"}>
                       {donation.status}
-                    </span>
+                    </Badge>
                   </div>
 
                   <div className="space-y-2">
@@ -194,37 +175,43 @@ export default function RecurringDonationsPage() {
                 <div className="flex flex-col gap-2">
                   {donation.status === "ACTIVE" ? (
                     <>
-                      <button
+                      <Button
+                        variant="secondary"
+                        size="sm"
                         onClick={() => handlePause(donation.id)}
                         disabled={managingId === donation.id}
-                        className="rounded-sm border-2 border-yellow-500 px-3 py-1 text-sm font-medium text-yellow-600 hover:bg-yellow-50 disabled:opacity-60"
+                        className="border-status-pending text-status-pending hover:bg-status-pending hover:text-paper"
                       >
-                        ⏸ Pause
-                      </button>
-                      <button
+                        Pause
+                      </Button>
+                      <Button
+                        variant="danger"
+                        size="sm"
                         onClick={() => handleCancel(donation.id)}
                         disabled={managingId === donation.id}
-                        className="rounded-sm border-2 border-status-rejected px-3 py-1 text-sm font-medium text-status-rejected hover:bg-status-rejected/5 disabled:opacity-60"
                       >
-                        ✕ Cancel
-                      </button>
+                        Cancel
+                      </Button>
                     </>
                   ) : (
                     <>
-                      <button
+                      <Button
+                        variant="secondary"
+                        size="sm"
                         onClick={() => handleResume(donation.id)}
                         disabled={managingId === donation.id}
-                        className="rounded-sm border-2 border-teal px-3 py-1 text-sm font-medium text-teal hover:bg-teal/5 disabled:opacity-60"
+                        className="border-teal text-teal hover:bg-teal hover:text-paper"
                       >
-                        ▶ Resume
-                      </button>
-                      <button
+                        Resume
+                      </Button>
+                      <Button
+                        variant="danger"
+                        size="sm"
                         onClick={() => handleCancel(donation.id)}
                         disabled={managingId === donation.id}
-                        className="rounded-sm border-2 border-status-rejected px-3 py-1 text-sm font-medium text-status-rejected hover:bg-status-rejected/5 disabled:opacity-60"
                       >
-                        ✕ Cancel
-                      </button>
+                        Cancel
+                      </Button>
                     </>
                   )}
                 </div>
@@ -236,13 +223,13 @@ export default function RecurringDonationsPage() {
                   Total payments: {donation.total_payments}
                 </p>
               </div>
-            </div>
+            </Card>
           ))}
         </div>
       )}
 
       {error && (
-        <div role="alert" className="rounded-sm border-2 border-status-rejected bg-status-rejected/5 p-4">
+        <div role="alert" className="rounded-sm border border-status-rejected/40 bg-status-rejected/5 p-4">
           <p className="text-sm text-status-rejected">{error}</p>
         </div>
       )}

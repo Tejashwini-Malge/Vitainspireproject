@@ -3,6 +3,11 @@
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { api } from '@/lib/api';
+import { PageHeader } from '@/components/ui/page-header';
+import { Card } from '@/components/ui/card';
+import { Input } from '@/components/ui/input';
+import { Textarea } from '@/components/ui/textarea';
+import { Button } from '@/components/ui/button';
 
 interface Opportunity {
   id: string;
@@ -14,6 +19,7 @@ export default function CreateProposalPage() {
   const router = useRouter();
   const [opportunities, setOpportunities] = useState<Opportunity[]>([]);
   const [loading, setLoading] = useState(false);
+  const [generating, setGenerating] = useState(false);
   const [error, setError] = useState('');
   const [formData, setFormData] = useState({
     opportunity_id: '',
@@ -25,10 +31,38 @@ export default function CreateProposalPage() {
   });
 
   useEffect(() => {
-    api<(Opportunity & { status: string })[]>('/csr/opportunities')
-      .then(data => setOpportunities(data.filter(o => o.status === 'PUBLISHED') || []))
+    api<(Opportunity & { status: string })[]>('/csr/opportunities?status_filter=PUBLISHED')
+      .then(data => setOpportunities(data || []))
       .catch(() => setError('Failed to load opportunities'));
   }, []);
+
+  const handleGenerate = async () => {
+    if (!formData.opportunity_id) return;
+    setGenerating(true);
+    setError('');
+    try {
+      const draft = await api<{
+        problem_statement: string;
+        solution: string;
+        timeline: string;
+        expected_outcomes: string;
+      }>('/ngo/proposals/generate-draft', {
+        method: 'POST',
+        body: JSON.stringify({ opportunity_id: formData.opportunity_id }),
+      });
+      setFormData(prev => ({
+        ...prev,
+        problem_statement: draft.problem_statement,
+        solution: draft.solution,
+        timeline: draft.timeline,
+        expected_outcomes: draft.expected_outcomes,
+      }));
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to generate draft');
+    } finally {
+      setGenerating(false);
+    }
+  };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -52,106 +86,115 @@ export default function CreateProposalPage() {
   };
 
   return (
-    <div className="max-w-2xl mx-auto p-8">
-      <h1 className="text-3xl font-bold mb-8">Submit Proposal</h1>
+    <div className="mx-auto max-w-2xl space-y-8">
+      <PageHeader eyebrow="NGO" title="Submit Proposal" />
 
-      {error && <div className="bg-red-100 text-red-700 p-4 rounded mb-4">{error}</div>}
-
-      <form onSubmit={handleSubmit} className="space-y-6">
-        <div>
-          <label className="block font-semibold mb-2">Select Opportunity *</label>
-          <select
-            value={formData.opportunity_id}
-            onChange={e => setFormData({ ...formData, opportunity_id: e.target.value })}
-            className="w-full border rounded px-4 py-2"
-            required
-          >
-            <option value="">Choose an opportunity...</option>
-            {opportunities.map(opp => (
-              <option key={opp.id} value={opp.id}>
-                {opp.title}
-              </option>
-            ))}
-          </select>
+      {error && (
+        <div role="alert" className="rounded-sm border-2 border-status-rejected bg-white p-4 text-sm text-status-rejected">
+          {error}
         </div>
+      )}
 
-        <div>
-          <label className="block font-semibold mb-2">Problem Statement *</label>
-          <textarea
-            value={formData.problem_statement}
-            onChange={e => setFormData({ ...formData, problem_statement: e.target.value })}
-            className="w-full border rounded px-4 py-2"
-            rows={4}
-            minLength={10}
-            required
-          />
-        </div>
+      <Card className="p-8">
+        <form onSubmit={handleSubmit} className="space-y-6">
+          <div>
+            <label className="mb-2 block text-sm font-semibold text-navy">Select Opportunity *</label>
+            <select
+              value={formData.opportunity_id}
+              onChange={e => setFormData({ ...formData, opportunity_id: e.target.value })}
+              className="w-full rounded-sm border border-line bg-[#FFFDF7] px-3 py-2 text-ink transition-colors focus:outline-none focus:ring-2 focus:ring-[var(--focus)] focus:ring-offset-1"
+              required
+            >
+              <option value="">Choose an opportunity...</option>
+              {opportunities.map(opp => (
+                <option key={opp.id} value={opp.id}>
+                  {opp.title}
+                </option>
+              ))}
+            </select>
+          </div>
 
-        <div>
-          <label className="block font-semibold mb-2">Solution *</label>
-          <textarea
-            value={formData.solution}
-            onChange={e => setFormData({ ...formData, solution: e.target.value })}
-            className="w-full border rounded px-4 py-2"
-            rows={4}
-            minLength={10}
-            required
-          />
-        </div>
+          {formData.opportunity_id && (
+            <div className="flex items-center gap-3">
+              <Button
+                type="button"
+                variant="secondary"
+                onClick={handleGenerate}
+                disabled={generating}
+              >
+                {generating ? 'Generating…' : 'Generate draft with AI'}
+              </Button>
+              <p className="text-xs text-muted">
+                Drafts the fields below from this opportunity and your NGO profile — review and edit before submitting.
+              </p>
+            </div>
+          )}
 
-        <div>
-          <label className="block font-semibold mb-2">Budget Requested (₹) *</label>
-          <input
-            type="number"
-            value={formData.budget_requested}
-            onChange={e => setFormData({ ...formData, budget_requested: e.target.value })}
-            className="w-full border rounded px-4 py-2"
-            required
-          />
-        </div>
+          <div>
+            <label className="mb-2 block text-sm font-semibold text-navy">Problem Statement *</label>
+            <Textarea
+              value={formData.problem_statement}
+              onChange={e => setFormData({ ...formData, problem_statement: e.target.value })}
+              rows={4}
+              minLength={10}
+              required
+            />
+          </div>
 
-        <div>
-          <label className="block font-semibold mb-2">Timeline *</label>
-          <input
-            type="text"
-            value={formData.timeline}
-            onChange={e => setFormData({ ...formData, timeline: e.target.value })}
-            className="w-full border rounded px-4 py-2"
-            placeholder="e.g., 12 months"
-            minLength={5}
-            required
-          />
-        </div>
+          <div>
+            <label className="mb-2 block text-sm font-semibold text-navy">Solution *</label>
+            <Textarea
+              value={formData.solution}
+              onChange={e => setFormData({ ...formData, solution: e.target.value })}
+              rows={4}
+              minLength={10}
+              required
+            />
+          </div>
 
-        <div>
-          <label className="block font-semibold mb-2">Expected Outcomes *</label>
-          <textarea
-            value={formData.expected_outcomes}
-            onChange={e => setFormData({ ...formData, expected_outcomes: e.target.value })}
-            className="w-full border rounded px-4 py-2"
-            rows={3}
-            minLength={10}
-            required
-          />
-        </div>
+          <div>
+            <label className="mb-2 block text-sm font-semibold text-navy">Budget Requested (₹) *</label>
+            <Input
+              type="number"
+              value={formData.budget_requested}
+              onChange={e => setFormData({ ...formData, budget_requested: e.target.value })}
+              required
+            />
+          </div>
 
-        <div className="flex gap-4">
-          <button
-            type="submit"
-            disabled={loading}
-            className="bg-blue-600 text-white px-6 py-2 rounded-lg hover:bg-blue-700 disabled:opacity-50"
-          >
-            {loading ? 'Submitting...' : 'Submit Proposal'}
-          </button>
-          <button
-            type="button"
-            onClick={() => router.back()}
-            className="bg-gray-300 text-gray-700 px-6 py-2 rounded-lg hover:bg-gray-400"
-          >
-            Cancel
-          </button>
-        </div>
-      </form>
+          <div>
+            <label className="mb-2 block text-sm font-semibold text-navy">Timeline *</label>
+            <Input
+              type="text"
+              value={formData.timeline}
+              onChange={e => setFormData({ ...formData, timeline: e.target.value })}
+              placeholder="e.g., 12 months"
+              minLength={5}
+              required
+            />
+          </div>
+
+          <div>
+            <label className="mb-2 block text-sm font-semibold text-navy">Expected Outcomes *</label>
+            <Textarea
+              value={formData.expected_outcomes}
+              onChange={e => setFormData({ ...formData, expected_outcomes: e.target.value })}
+              rows={3}
+              minLength={10}
+              required
+            />
+          </div>
+
+          <div className="flex gap-4">
+            <Button type="submit" variant="primary" disabled={loading}>
+              {loading ? 'Submitting...' : 'Submit Proposal'}
+            </Button>
+            <Button type="button" variant="secondary" onClick={() => router.back()}>
+              Cancel
+            </Button>
+          </div>
+        </form>
+      </Card>
     </div>
   );
 }

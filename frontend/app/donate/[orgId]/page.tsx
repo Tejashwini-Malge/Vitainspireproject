@@ -3,7 +3,14 @@
 import Link from "next/link";
 import { useParams, useSearchParams } from "next/navigation";
 import { FormEvent, Suspense, useEffect, useState } from "react";
+import { motion } from "framer-motion";
 import { Notice } from "@/components/Notice";
+import { VerificationBadge } from "@/components/VerificationBadge";
+import { Card } from "@/components/ui/card";
+import { Input } from "@/components/ui/input";
+import { Textarea } from "@/components/ui/textarea";
+import { Button } from "@/components/ui/button";
+import { EmptyState } from "@/components/ui/empty-state";
 import { api, ApiError, clearToken } from "@/lib/api";
 import type { Donation, PublicNgo } from "@/lib/types";
 
@@ -76,20 +83,27 @@ function DonateForm() {
 
   if (ngo === "not-found") {
     return (
-      <div className="space-y-2">
-        <h1 className="text-2xl font-semibold text-navy">This NGO is not available for donations</h1>
-        <p className="text-muted">It may not exist, or has not been verified and published yet.</p>
-        <Link href="/" className="text-teal hover:underline">
-          Back to browsing
-        </Link>
-      </div>
+      <EmptyState
+        title="This NGO is not available for donations"
+        description="It may not exist, or has not been verified and published yet."
+        action={
+          <Link href="/" className="font-medium text-teal hover:underline">
+            Back to browsing
+          </Link>
+        }
+      />
     );
   }
   if (!ngo) return <p className="text-muted">Loading…</p>;
 
   if (receipt) {
     return (
-      <div className="mx-auto max-w-lg space-y-6">
+      <motion.div
+        initial={{ opacity: 0, y: 12 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ duration: 0.35, ease: "easeOut" }}
+        className="mx-auto max-w-lg space-y-6"
+      >
         <Notice kind="success">Thank you, {receipt.donor_name}. This is now on the ledger -- {ngo.name} and Imparency can both see it.</Notice>
         <dl className="stub-card">
           <div className="space-y-2 p-5 text-sm">
@@ -120,91 +134,150 @@ function DonateForm() {
         <Link href="/" className="inline-block font-medium text-teal hover:underline">
           Back to browsing
         </Link>
-      </div>
+      </motion.div>
     );
   }
 
   return (
-    <div className="mx-auto max-w-lg space-y-6">
-      <header className="space-y-1">
-        <p className="text-sm font-medium text-status-approved">Verified by Imparency</p>
+    <motion.div
+      initial={{ opacity: 0, y: 12 }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={{ duration: 0.35, ease: "easeOut" }}
+      className="mx-auto max-w-lg space-y-6"
+    >
+      <header className="space-y-2">
+        <VerificationBadge status="APPROVED" />
         <h1 className="text-2xl font-semibold text-navy">Donate to {ngo.name}</h1>
         <p className="text-muted">{ngo.profile.mission}</p>
       </header>
 
-      <form onSubmit={onSubmit} className="space-y-5">
-        <label className="block">
-          <span className="text-sm font-medium">Your name</span>
-          <input required maxLength={200} value={donorName} onChange={(e) => setDonorName(e.target.value)}
-            className="mt-1 w-full rounded-sm border-2 border-line bg-white px-3 py-2" />
-        </label>
-        <label className="block">
-          <span className="text-sm font-medium">Email (for your receipt)</span>
-          <input type="email" required value={donorEmail} onChange={(e) => setDonorEmail(e.target.value)}
-            className="mt-1 w-full rounded-sm border-2 border-line bg-white px-3 py-2" />
-        </label>
-        <label className="block">
-          <span className="text-sm font-medium">Amount (INR)</span>
-          <input type="number" required min="1" step="0.01" value={amount} onChange={(e) => setAmount(e.target.value)}
-            className="mt-1 w-full rounded-sm border-2 border-line bg-white px-3 py-2 font-mono" />
-        </label>
-
-        <fieldset className="space-y-4">
-          <legend className="text-sm font-medium">Billing address</legend>
-          <label className="block">
-            <span className="text-sm">Address line 1</span>
-            <input required maxLength={200} value={billing.line1} onChange={(e) => updateBilling("line1", e.target.value)}
-              className="mt-1 w-full rounded-sm border-2 border-line bg-white px-3 py-2" />
-          </label>
-          <label className="block">
-            <span className="text-sm">Address line 2 (optional)</span>
-            <input maxLength={200} value={billing.line2} onChange={(e) => updateBilling("line2", e.target.value)}
-              className="mt-1 w-full rounded-sm border-2 border-line bg-white px-3 py-2" />
-          </label>
-          <div className="grid gap-4 md:grid-cols-2">
+      <Card className="p-6 sm:p-8">
+        <form onSubmit={onSubmit} className="space-y-6">
+          <div className="space-y-4">
             <label className="block">
-              <span className="text-sm">City</span>
-              <input required maxLength={100} value={billing.city} onChange={(e) => updateBilling("city", e.target.value)}
-                className="mt-1 w-full rounded-sm border-2 border-line bg-white px-3 py-2" />
+              <span className="text-sm font-medium text-navy">Your name</span>
+              <Input
+                required
+                maxLength={200}
+                value={donorName}
+                onChange={(e) => setDonorName(e.target.value)}
+                className="mt-1"
+              />
             </label>
             <label className="block">
-              <span className="text-sm">State</span>
-              <input required maxLength={100} value={billing.state} onChange={(e) => updateBilling("state", e.target.value)}
-                className="mt-1 w-full rounded-sm border-2 border-line bg-white px-3 py-2" />
+              <span className="text-sm font-medium text-navy">Email (for your receipt)</span>
+              <Input
+                type="email"
+                required
+                value={donorEmail}
+                onChange={(e) => setDonorEmail(e.target.value)}
+                className="mt-1"
+              />
             </label>
             <label className="block">
-              <span className="text-sm">Postal code</span>
-              <input required maxLength={20} value={billing.postal_code} onChange={(e) => updateBilling("postal_code", e.target.value)}
-                className="mt-1 w-full rounded-sm border-2 border-line bg-white px-3 py-2" />
-            </label>
-            <label className="block">
-              <span className="text-sm">Country</span>
-              <input required maxLength={100} value={billing.country} onChange={(e) => updateBilling("country", e.target.value)}
-                className="mt-1 w-full rounded-sm border-2 border-line bg-white px-3 py-2" />
+              <span className="text-sm font-medium text-navy">Amount (INR)</span>
+              <Input
+                type="number"
+                required
+                min="1"
+                step="0.01"
+                value={amount}
+                onChange={(e) => setAmount(e.target.value)}
+                className="mt-1 font-mono"
+              />
             </label>
           </div>
-        </fieldset>
 
-        <label className="block">
-          <span className="text-sm font-medium">Message to the NGO (optional)</span>
-          <textarea rows={2} maxLength={500} value={message} onChange={(e) => setMessage(e.target.value)}
-            className="mt-1 w-full rounded-sm border-2 border-line bg-white px-3 py-2" />
-        </label>
+          <fieldset className="space-y-4 rounded-sm border border-line bg-navy/[0.03] p-4">
+            <legend className="px-1 text-sm font-medium text-navy">Billing address</legend>
+            <label className="block">
+              <span className="text-sm text-ink">Address line 1</span>
+              <Input
+                required
+                maxLength={200}
+                value={billing.line1}
+                onChange={(e) => updateBilling("line1", e.target.value)}
+                className="mt-1"
+              />
+            </label>
+            <label className="block">
+              <span className="text-sm text-ink">Address line 2 (optional)</span>
+              <Input
+                maxLength={200}
+                value={billing.line2}
+                onChange={(e) => updateBilling("line2", e.target.value)}
+                className="mt-1"
+              />
+            </label>
+            <div className="grid gap-4 md:grid-cols-2">
+              <label className="block">
+                <span className="text-sm text-ink">City</span>
+                <Input
+                  required
+                  maxLength={100}
+                  value={billing.city}
+                  onChange={(e) => updateBilling("city", e.target.value)}
+                  className="mt-1"
+                />
+              </label>
+              <label className="block">
+                <span className="text-sm text-ink">State</span>
+                <Input
+                  required
+                  maxLength={100}
+                  value={billing.state}
+                  onChange={(e) => updateBilling("state", e.target.value)}
+                  className="mt-1"
+                />
+              </label>
+              <label className="block">
+                <span className="text-sm text-ink">Postal code</span>
+                <Input
+                  required
+                  maxLength={20}
+                  value={billing.postal_code}
+                  onChange={(e) => updateBilling("postal_code", e.target.value)}
+                  className="mt-1"
+                />
+              </label>
+              <label className="block">
+                <span className="text-sm text-ink">Country</span>
+                <Input
+                  required
+                  maxLength={100}
+                  value={billing.country}
+                  onChange={(e) => updateBilling("country", e.target.value)}
+                  className="mt-1"
+                />
+              </label>
+            </div>
+          </fieldset>
 
-        {error && (
-          <p role="alert" className="text-sm text-status-rejected">
-            {error}
+          <label className="block">
+            <span className="text-sm font-medium text-navy">Message to the NGO (optional)</span>
+            <Textarea
+              rows={2}
+              maxLength={500}
+              value={message}
+              onChange={(e) => setMessage(e.target.value)}
+              className="mt-1"
+            />
+          </label>
+
+          {error && (
+            <p role="alert" className="text-sm text-status-rejected">
+              {error}
+            </p>
+          )}
+          <Button type="submit" disabled={busy} className="w-full" size="lg">
+            {busy ? "Recording donation…" : "Donate"}
+          </Button>
+          <p className="text-center text-sm text-muted">
+            No account is needed. If you are signed in, this donation is also added to your donation history.
           </p>
-        )}
-        <button type="submit" disabled={busy}
-          className="w-full rounded-sm bg-teal px-4 py-2 font-display font-medium text-paper disabled:opacity-60">
-          {busy ? "Recording donation…" : "Donate"}
-        </button>
-        <p className="text-sm text-muted">
-          No account is needed. If you are signed in, this donation is also added to your donation history.
-        </p>
-      </form>
-    </div>
+        </form>
+      </Card>
+    </motion.div>
   );
 }
 

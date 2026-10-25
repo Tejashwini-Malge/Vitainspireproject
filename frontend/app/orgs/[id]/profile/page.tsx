@@ -6,6 +6,11 @@ import { FormEvent, useCallback, useEffect, useState } from "react";
 import { Notice } from "@/components/Notice";
 import { OrgNav } from "@/components/OrgNav";
 import { VerificationBadge } from "@/components/VerificationBadge";
+import { Button } from "@/components/ui/button";
+import { Card } from "@/components/ui/card";
+import { Input } from "@/components/ui/input";
+import { PageHeader } from "@/components/ui/page-header";
+import { Textarea } from "@/components/ui/textarea";
 import { api, ApiError, clearToken, getToken } from "@/lib/api";
 import type { Me, Member, Org, Profile, Role } from "@/lib/types";
 
@@ -189,13 +194,14 @@ export default function ProfilePage() {
 
   return (
     <div className="space-y-8">
-      <header className="space-y-2">
-        <h1 className="text-2xl font-semibold text-navy">{org.name}</h1>
-        <p className="text-muted">
-          {org.org_type} · <VerificationBadge status={org.verification_status} />
-        </p>
+      <div className="space-y-3">
+        <PageHeader
+          eyebrow={org.org_type}
+          title={org.name}
+          description={<VerificationBadge status={org.verification_status} />}
+        />
         <OrgNav orgId={id} showNgoTabs={isNgo} />
-      </header>
+      </div>
 
       {!isNgo ? (
         <p className="text-muted">Public profiles are available for NGO organizations.</p>
@@ -213,10 +219,8 @@ export default function ProfilePage() {
         </section>
       ) : (
         <>
-          <section aria-labelledby="status-heading" className="space-y-3 rounded-sm border-2 border-line bg-white p-5">
-            <h2 id="status-heading" className="text-lg font-semibold text-navy">
-              Visibility
-            </h2>
+          <Card className="space-y-3 p-5">
+            <h2 className="text-lg font-semibold text-navy">Visibility</h2>
             {!profile ? (
               <p className="text-muted">You have not written a profile yet. Start with your mission, then publish when ready.</p>
             ) : profile.status === "PUBLISHED" ? (
@@ -238,20 +242,18 @@ export default function ProfilePage() {
             </p>
             <div className="flex flex-wrap gap-3 pt-2">
               {profile?.status === "PUBLISHED" ? (
-                <button type="button" onClick={onUnpublish} disabled={publishing}
-                  className="rounded-sm border-2 border-navy px-4 py-2 font-display font-medium text-navy disabled:opacity-60">
+                <Button type="button" variant="secondary" onClick={onUnpublish} disabled={publishing}>
                   {publishing ? "Working…" : "Take profile offline"}
-                </button>
+                </Button>
               ) : (
-                <button type="button" onClick={onPublish} disabled={publishing || !profile}
-                  className="rounded-sm bg-teal px-4 py-2 font-display font-medium text-paper disabled:opacity-60">
+                <Button type="button" onClick={onPublish} disabled={publishing || !profile}>
                   {publishing ? "Publishing…" : "Publish profile"}
-                </button>
+                </Button>
               )}
             </div>
             {publishMessage && <Notice kind="success">{publishMessage}</Notice>}
             {blockers.length > 0 && (
-              <div role="alert" className="rounded-sm border-2 border-status-rejected bg-white p-4 text-sm text-status-rejected">
+              <div role="alert" className="rounded-sm border border-status-rejected/40 bg-status-rejected/5 p-4 text-sm text-status-rejected">
                 <p className="font-medium">The profile cannot be published yet:</p>
                 <ul className="mt-2 list-disc space-y-1 pl-5">
                   {blockers.map((b) => (
@@ -260,7 +262,7 @@ export default function ProfilePage() {
                 </ul>
               </div>
             )}
-          </section>
+          </Card>
 
           <form onSubmit={onSave} className="space-y-5" aria-labelledby="edit-heading">
             <h2 id="edit-heading" className="text-lg font-semibold text-navy">
@@ -268,80 +270,75 @@ export default function ProfilePage() {
             </h2>
             <label className="block">
               <span className="text-sm font-medium">Mission (required, 1000 characters at most)</span>
-              <textarea required rows={3} maxLength={1000} value={form.mission}
+              <Textarea required rows={3} maxLength={1000} value={form.mission}
                 onChange={(e) => update("mission", e.target.value)}
-                className="mt-1 w-full rounded-sm border-2 border-line bg-white px-3 py-2" />
+                className="mt-1" />
             </label>
             <label className="block">
               <span className="text-sm font-medium">About your work (optional)</span>
-              <textarea rows={6} maxLength={4000} value={form.about}
+              <Textarea rows={6} maxLength={4000} value={form.about}
                 onChange={(e) => update("about", e.target.value)}
-                className="mt-1 w-full rounded-sm border-2 border-line bg-white px-3 py-2" />
+                className="mt-1" />
             </label>
             <label className="block">
               <span className="text-sm font-medium">Registered organisation name (optional)</span>
               <span className="block text-sm text-muted">The full legal name as it appears on your registration certificate.</span>
-              <input maxLength={300} value={form.organization_title}
+              <Input maxLength={300} value={form.organization_title}
                 onChange={(e) => update("organization_title", e.target.value)}
-                className="mt-1 w-full rounded-sm border-2 border-line bg-white px-3 py-2" />
+                className="mt-1" />
             </label>
             <label className="block">
               <span className="text-sm font-medium">Vision (optional)</span>
               <span className="block text-sm text-muted">The long-term change you want to see.</span>
-              <textarea rows={3} value={form.vision}
+              <Textarea rows={3} value={form.vision}
                 onChange={(e) => update("vision", e.target.value)}
-                className="mt-1 w-full rounded-sm border-2 border-line bg-white px-3 py-2" />
+                className="mt-1" />
             </label>
             <label className="block">
               <span className="text-sm font-medium">Description (optional)</span>
               <span className="block text-sm text-muted">A fuller account of who you are, for donors and funders.</span>
-              <textarea rows={5} value={form.description}
+              <Textarea rows={5} value={form.description}
                 onChange={(e) => update("description", e.target.value)}
-                className="mt-1 w-full rounded-sm border-2 border-line bg-white px-3 py-2" />
+                className="mt-1" />
             </label>
             <div className="grid gap-5 md:grid-cols-2">
               <label className="block">
                 <span className="text-sm font-medium">Sectors of work</span>
                 <span className="block text-sm text-muted">Separate with commas, for example: Water, Sanitation</span>
-                <input value={form.sectors} onChange={(e) => update("sectors", e.target.value)}
-                  className="mt-1 w-full rounded-sm border-2 border-line bg-white px-3 py-2" />
+                <Input value={form.sectors} onChange={(e) => update("sectors", e.target.value)} className="mt-1" />
               </label>
               <label className="block">
                 <span className="text-sm font-medium">Places you work</span>
                 <span className="block text-sm text-muted">Separate with commas, for example: Odisha, Jharkhand</span>
-                <input value={form.geographies} onChange={(e) => update("geographies", e.target.value)}
-                  className="mt-1 w-full rounded-sm border-2 border-line bg-white px-3 py-2" />
+                <Input value={form.geographies} onChange={(e) => update("geographies", e.target.value)} className="mt-1" />
               </label>
               <label className="block">
                 <span className="text-sm font-medium">Founded (year, optional)</span>
-                <input type="number" min={1800} max={2100} value={form.founded_year}
+                <Input type="number" min={1800} max={2100} value={form.founded_year}
                   onChange={(e) => update("founded_year", e.target.value)}
-                  className="mt-1 w-full rounded-sm border-2 border-line bg-white px-3 py-2" />
+                  className="mt-1" />
               </label>
               <label className="block">
                 <span className="text-sm font-medium">Website (optional, https only)</span>
-                <input type="url" placeholder="https://" value={form.website}
+                <Input type="url" placeholder="https://" value={form.website}
                   onChange={(e) => update("website", e.target.value)}
-                  className="mt-1 w-full rounded-sm border-2 border-line bg-white px-3 py-2" />
+                  className="mt-1" />
               </label>
               <label className="block">
                 <span className="text-sm font-medium">Registration number (optional)</span>
                 <span className="block text-sm text-muted">As stated by you. Printed on donors' tax certificates.</span>
-                <input value={form.registration_number} onChange={(e) => update("registration_number", e.target.value)}
-                  className="mt-1 w-full rounded-sm border-2 border-line bg-white px-3 py-2" />
+                <Input value={form.registration_number} onChange={(e) => update("registration_number", e.target.value)} className="mt-1" />
               </label>
               <label className="block">
                 <span className="text-sm font-medium">80G registration number (optional)</span>
                 <span className="block text-sm text-muted">As stated by you. Printed on donors' tax certificates.</span>
-                <input value={form.section_80g_number} onChange={(e) => update("section_80g_number", e.target.value)}
-                  className="mt-1 w-full rounded-sm border-2 border-line bg-white px-3 py-2" />
+                <Input value={form.section_80g_number} onChange={(e) => update("section_80g_number", e.target.value)} className="mt-1" />
               </label>
             </div>
             <div className="flex items-center gap-4">
-              <button type="submit" disabled={saving}
-                className="rounded-sm bg-navy px-4 py-2 font-display font-medium text-paper disabled:opacity-60">
+              <Button type="submit" variant="secondary" disabled={saving}>
                 {saving ? "Saving…" : "Save changes"}
-              </button>
+              </Button>
             </div>
             {saved && <Notice kind="success">{saved}</Notice>}
             {saveError && <Notice kind="error">{saveError}</Notice>}
@@ -354,25 +351,27 @@ export default function ProfilePage() {
 
 function ProfileSummary({ profile }: { profile: Profile }) {
   return (
-    <dl className="grid gap-4 rounded-sm border-2 border-line bg-white p-5 md:grid-cols-2">
-      <div className="md:col-span-2">
-        <dt className="text-sm font-medium text-muted">Mission</dt>
-        <dd className="mt-1">{profile.mission}</dd>
-      </div>
-      {profile.about && (
+    <Card className="p-5">
+      <dl className="grid gap-4 md:grid-cols-2">
         <div className="md:col-span-2">
-          <dt className="text-sm font-medium text-muted">About</dt>
-          <dd className="mt-1 whitespace-pre-line">{profile.about}</dd>
+          <dt className="text-sm font-medium text-muted">Mission</dt>
+          <dd className="mt-1">{profile.mission}</dd>
         </div>
-      )}
-      <div>
-        <dt className="text-sm font-medium text-muted">Sectors</dt>
-        <dd className="mt-1">{profile.sectors.join(", ") || "Not provided"}</dd>
-      </div>
-      <div>
-        <dt className="text-sm font-medium text-muted">Places</dt>
-        <dd className="mt-1">{profile.geographies.join(", ") || "Not provided"}</dd>
-      </div>
-    </dl>
+        {profile.about && (
+          <div className="md:col-span-2">
+            <dt className="text-sm font-medium text-muted">About</dt>
+            <dd className="mt-1 whitespace-pre-line">{profile.about}</dd>
+          </div>
+        )}
+        <div>
+          <dt className="text-sm font-medium text-muted">Sectors</dt>
+          <dd className="mt-1">{profile.sectors.join(", ") || "Not provided"}</dd>
+        </div>
+        <div>
+          <dt className="text-sm font-medium text-muted">Places</dt>
+          <dd className="mt-1">{profile.geographies.join(", ") || "Not provided"}</dd>
+        </div>
+      </dl>
+    </Card>
   );
 }

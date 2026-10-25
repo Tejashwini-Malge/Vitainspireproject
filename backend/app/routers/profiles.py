@@ -188,4 +188,5 @@ async def extract_website(payload: WebsiteExtractIn) -> WebsiteExtractOut:
         founded_year=data.founded_year,
         title=data.title,
         description=data.description,
+        sectors=data.sectors or [],
     )

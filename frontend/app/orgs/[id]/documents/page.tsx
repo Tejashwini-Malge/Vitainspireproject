@@ -6,6 +6,11 @@ import { Notice } from "@/components/Notice";
 import { OrgNav } from "@/components/OrgNav";
 import { ReviewBadge } from "@/components/ReviewBadge";
 import { VerificationBadge } from "@/components/VerificationBadge";
+import { Button } from "@/components/ui/button";
+import { Card } from "@/components/ui/card";
+import { EmptyState } from "@/components/ui/empty-state";
+import { Input } from "@/components/ui/input";
+import { PageHeader } from "@/components/ui/page-header";
 import { api, ApiError, clearToken, downloadFile, getToken } from "@/lib/api";
 import { DOC_TYPE_LABEL, type Decision, type DocumentType, type Me, type Member, type Org, type OrgDocument, type Role } from "@/lib/types";
 
@@ -156,13 +161,14 @@ export default function DocumentsPage() {
 
   return (
     <div className="space-y-8">
-      <header className="space-y-2">
-        <h1 className="text-2xl font-semibold text-navy">{org.name}</h1>
-        <p className="text-muted">
-          {org.org_type} · <VerificationBadge status={org.verification_status} />
-        </p>
+      <div className="space-y-3">
+        <PageHeader
+          eyebrow={org.org_type}
+          title={org.name}
+          description={<VerificationBadge status={org.verification_status} />}
+        />
         <OrgNav orgId={id} showNgoTabs={isNgo} />
-      </header>
+      </div>
 
       {!isNgo ? (
         <p className="text-muted">Compliance documents are collected for NGO organizations.</p>
@@ -180,52 +186,52 @@ export default function DocumentsPage() {
           </section>
 
           {docs.length === 0 ? (
-            <p className="rounded border border-dashed border-line bg-white p-6 text-muted">
-              No documents yet.{" "}
-              {canManage ? "Upload your registration certificate and tax-exemption records below to start review." : "Owners and admins can upload documents."}
-            </p>
+            <EmptyState
+              title="No documents yet"
+              description={canManage ? "Upload your registration certificate and tax-exemption records below to start review." : "Owners and admins can upload documents."}
+            />
           ) : (
             <ul className="space-y-4" aria-label="Uploaded documents">
               {docs.map((doc) => (
-                <li key={doc.id} className="space-y-3 rounded-sm border-2 border-line bg-white p-5">
-                  <div className="flex flex-wrap items-start justify-between gap-3">
-                    <div>
-                      <p className="font-medium text-navy">{doc.title}</p>
-                      <p className="text-sm text-muted">
-                        {DOC_TYPE_LABEL[doc.doc_type]} · {doc.original_filename} · {formatSize(doc.size_bytes)} · uploaded{" "}
-                        {formatDate(doc.uploaded_at)}
-                      </p>
-                      {doc.valid_until_stated && (
+                <li key={doc.id}>
+                  <Card className="space-y-3 p-5">
+                    <div className="flex flex-wrap items-start justify-between gap-3">
+                      <div>
+                        <p className="font-medium text-navy">{doc.title}</p>
                         <p className="text-sm text-muted">
-                          Expiry stated by your organization: {formatDate(doc.valid_until_stated)} (not verified by Imparency)
+                          {DOC_TYPE_LABEL[doc.doc_type]} · {doc.original_filename} · {formatSize(doc.size_bytes)} · uploaded{" "}
+                          {formatDate(doc.uploaded_at)}
                         </p>
-                      )}
+                        {doc.valid_until_stated && (
+                          <p className="text-sm text-muted">
+                            Expiry stated by your organization: {formatDate(doc.valid_until_stated)} (not verified by Imparency)
+                          </p>
+                        )}
+                      </div>
+                      <ReviewBadge status={doc.review_status} />
                     </div>
-                    <ReviewBadge status={doc.review_status} />
-                  </div>
-                  <p className="text-sm">{statusCopy(doc)}</p>
-                  {doc.latest_decision && (
-                    <blockquote className="border-l-2 border-line pl-3 text-sm">
-                      <span className="font-medium">Reviewer's note:</span> {doc.latest_decision.reason}
-                    </blockquote>
-                  )}
-                  <div className="flex flex-wrap gap-3">
-                    <button type="button" onClick={() => onDownload(doc)} disabled={busyDoc === doc.id}
-                      className="rounded-sm border-2 border-navy px-3 py-1.5 text-sm font-display font-medium text-navy disabled:opacity-60">
-                      {busyDoc === doc.id ? "Preparing…" : "Download"}
-                    </button>
-                    <button type="button" onClick={() => toggleHistory(doc)}
-                      aria-expanded={!!history[doc.id]}
-                      className="rounded-sm border-2 border-line px-3 py-1.5 text-sm font-display font-medium text-navy">
-                      {history[doc.id] ? "Hide review history" : "Review history"}
-                    </button>
-                  </div>
-                  {rowError[doc.id] && <Notice kind="error">{rowError[doc.id]}</Notice>}
-                  {history[doc.id] === "loading" && <p className="text-sm text-muted">Loading history…</p>}
-                  {history[doc.id] === "error" && <Notice kind="error">Could not load the review history.</Notice>}
-                  {Array.isArray(history[doc.id]) && (
-                    <HistoryList rows={history[doc.id] as Decision[]} />
-                  )}
+                    <p className="text-sm">{statusCopy(doc)}</p>
+                    {doc.latest_decision && (
+                      <blockquote className="border-l-2 border-line pl-3 text-sm">
+                        <span className="font-medium">Reviewer's note:</span> {doc.latest_decision.reason}
+                      </blockquote>
+                    )}
+                    <div className="flex flex-wrap gap-3">
+                      <Button type="button" variant="secondary" size="sm" onClick={() => onDownload(doc)} disabled={busyDoc === doc.id}>
+                        {busyDoc === doc.id ? "Preparing…" : "Download"}
+                      </Button>
+                      <Button type="button" variant="ghost" size="sm" onClick={() => toggleHistory(doc)}
+                        aria-expanded={!!history[doc.id]}>
+                        {history[doc.id] ? "Hide review history" : "Review history"}
+                      </Button>
+                    </div>
+                    {rowError[doc.id] && <Notice kind="error">{rowError[doc.id]}</Notice>}
+                    {history[doc.id] === "loading" && <p className="text-sm text-muted">Loading history…</p>}
+                    {history[doc.id] === "error" && <Notice kind="error">Could not load the review history.</Notice>}
+                    {Array.isArray(history[doc.id]) && (
+                      <HistoryList rows={history[doc.id] as Decision[]} />
+                    )}
+                  </Card>
                 </li>
               ))}
             </ul>
@@ -240,7 +246,7 @@ export default function DocumentsPage() {
                 <label className="block">
                   <span className="text-sm font-medium">Document type</span>
                   <select value={docType} onChange={(e) => setDocType(e.target.value as DocumentType)}
-                    className="mt-1 w-full rounded-sm border-2 border-line bg-white px-3 py-2">
+                    className="mt-1 w-full rounded-sm border border-line bg-[#FFFDF7] px-3 py-2 text-ink">
                     {DOC_TYPES.map((t) => (
                       <option key={t} value={t}>
                         {DOC_TYPE_LABEL[t]}
@@ -250,9 +256,9 @@ export default function DocumentsPage() {
                 </label>
                 <label className="block">
                   <span className="text-sm font-medium">Title</span>
-                  <input required maxLength={200} value={title} onChange={(e) => setTitle(e.target.value)}
+                  <Input required maxLength={200} value={title} onChange={(e) => setTitle(e.target.value)}
                     placeholder="For example: 12A certificate 2024–27"
-                    className="mt-1 w-full rounded-sm border-2 border-line bg-white px-3 py-2" />
+                    className="mt-1" />
                 </label>
                 <label className="block">
                   <span className="text-sm font-medium">File (PDF, JPEG or PNG, 10 MB at most)</span>
@@ -262,14 +268,12 @@ export default function DocumentsPage() {
                 </label>
                 <label className="block">
                   <span className="text-sm font-medium">Expiry date, as shown on the document (optional)</span>
-                  <input type="date" value={expiry} onChange={(e) => setExpiry(e.target.value)}
-                    className="mt-1 w-full rounded-sm border-2 border-line bg-white px-3 py-2" />
+                  <Input type="date" value={expiry} onChange={(e) => setExpiry(e.target.value)} className="mt-1" />
                 </label>
                 <div className="md:col-span-2">
-                  <button type="submit" disabled={uploading}
-                    className="rounded-sm bg-teal px-4 py-2 font-display font-medium text-paper disabled:opacity-60">
+                  <Button type="submit" disabled={uploading}>
                     {uploading ? "Uploading…" : "Upload document"}
-                  </button>
+                  </Button>
                 </div>
               </form>
               {uploadOk && <Notice kind="success">{uploadOk}</Notice>}

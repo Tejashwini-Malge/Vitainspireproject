@@ -76,8 +76,8 @@ export function TabsTrigger({ value, className, onClick, ...props }: TabsTrigger
         onClick?.(e);
       }}
       className={cn(
-        "rounded-md px-3 py-2 text-sm font-medium transition-colors",
-        selected ? "bg-white text-gray-900 shadow-sm" : "text-gray-600 hover:text-gray-900",
+        "rounded-sm px-3 py-2 text-sm font-medium transition-colors",
+        selected ? "bg-navy text-paper shadow-sm" : "text-muted hover:text-navy",
         className,
       )}
       {...props}

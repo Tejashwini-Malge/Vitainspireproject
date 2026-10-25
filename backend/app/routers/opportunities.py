@@ -73,11 +73,19 @@ def list_opportunities(
     user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ) -> list[OpportunityOut]:
-    """Opportunities belonging to the CSR organisations this user is a member of.
+    """List opportunities.
 
-    Scoped by membership, so a user who belongs to no CSR organisation gets an empty
-    list rather than another organisation's data.
+    Requesting PUBLISHED opportunities returns them across every CSR organisation —
+    that's the discovery feed NGOs browse to submit proposals against, not just the
+    caller's own org. Any other request (drafts, or no filter) stays scoped to the
+    CSR organisations this user is a member of, so a user who belongs to no CSR
+    organisation gets an empty list rather than another organisation's draft data.
     """
+    if status_filter == "PUBLISHED":
+        query = select(Opportunity).where(Opportunity.status == status_filter)
+        opps = db.scalars(query.order_by(Opportunity.created_at.desc())).all()
+        return [_opportunity_out(o) for o in opps]
+
     org_ids = list(
         db.scalars(
             select(Organization.id)

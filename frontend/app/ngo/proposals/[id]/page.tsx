@@ -4,6 +4,10 @@ import { useEffect, useState } from 'react';
 import { useRouter, useParams } from 'next/navigation';
 import { api, getToken } from '@/lib/api';
 import ProposalMessages from '@/components/ProposalMessages';
+import { PageHeader } from '@/components/ui/page-header';
+import { Card } from '@/components/ui/card';
+import { Badge, type BadgeTone } from '@/components/ui/badge';
+import { Button } from '@/components/ui/button';
 
 interface Proposal {
   id: string;
@@ -20,6 +24,14 @@ interface Proposal {
   created_at: string;
   updated_at: string;
 }
+
+const STATUS_TONE: Record<string, BadgeTone> = {
+  APPROVED: 'approved',
+  ADMIN_REJECTED: 'rejected',
+  CHANGES_REQUESTED: 'rejected',
+  SUBMITTED: 'pending',
+  PENDING_CSR: 'pending',
+};
 
 export default function NGOProposalDetailPage() {
   const router = useRouter();
@@ -40,20 +52,17 @@ export default function NGOProposalDetailPage() {
       .finally(() => setLoading(false));
   }, [params.id, router]);
 
-  if (loading) return <div className="p-8 text-center">Loading...</div>;
-  if (error) return <div className="p-8 text-red-600">{error}</div>;
-  if (!proposal) return <div className="p-8">Proposal not found</div>;
+  if (loading) return <p className="text-muted">Loading proposal…</p>;
+  if (error) {
+    return (
+      <div role="alert" className="rounded-sm border-2 border-status-rejected bg-white p-4 text-sm text-status-rejected">
+        {error}
+      </div>
+    );
+  }
+  if (!proposal) return <p className="text-muted">Proposal not found</p>;
 
-  const statusColor =
-    proposal.status === 'APPROVED'
-      ? 'bg-green-100 text-green-800'
-      : proposal.status === 'ADMIN_REJECTED'
-      ? 'bg-red-100 text-red-800'
-      : proposal.status === 'CHANGES_REQUESTED'
-      ? 'bg-orange-100 text-orange-800'
-      : proposal.status === 'SUBMITTED'
-      ? 'bg-amber-100 text-amber-800'
-      : 'bg-blue-100 text-blue-800';
+  const statusTone = STATUS_TONE[proposal.status] ?? 'neutral';
 
   const statusLabel =
     proposal.status === 'SUBMITTED'
@@ -65,73 +74,62 @@ export default function NGOProposalDetailPage() {
       : proposal.status;
 
   return (
-    <div className="max-w-4xl mx-auto p-8">
-      <div className="flex justify-between items-start mb-8">
-        <div>
-          <h1 className="text-4xl font-bold mb-2">Proposal v{proposal.version_num}</h1>
-          <p className="text-gray-600">Opportunity ID: {proposal.opportunity_id}</p>
-        </div>
-        <span className={`px-4 py-2 rounded-full font-semibold ${statusColor}`}>
-          {statusLabel}
-        </span>
-      </div>
+    <div className="space-y-8">
+      <PageHeader
+        eyebrow={`Opportunity ${proposal.opportunity_id}`}
+        title={`Proposal v${proposal.version_num}`}
+        action={<Badge tone={statusTone}>{statusLabel}</Badge>}
+      />
 
-      {/* Proposal Details */}
-      <div className="bg-white border rounded-lg p-8 mb-8 space-y-6">
+      <Card className="space-y-6 p-8">
         <div>
-          <h2 className="text-2xl font-bold mb-2">Problem Statement</h2>
-          <p className="text-gray-700 whitespace-pre-wrap">{proposal.problem_statement}</p>
+          <h2 className="mb-2 font-display text-xl font-semibold text-navy">Problem Statement</h2>
+          <p className="whitespace-pre-wrap text-ink">{proposal.problem_statement}</p>
         </div>
 
         <div>
-          <h2 className="text-2xl font-bold mb-2">Solution</h2>
-          <p className="text-gray-700 whitespace-pre-wrap">{proposal.solution}</p>
+          <h2 className="mb-2 font-display text-xl font-semibold text-navy">Solution</h2>
+          <p className="whitespace-pre-wrap text-ink">{proposal.solution}</p>
         </div>
 
-        <div className="grid grid-cols-2 gap-6">
+        <div className="grid grid-cols-2 gap-6 border-t border-line pt-6">
           <div>
-            <h3 className="font-semibold text-gray-900">Budget Requested</h3>
-            <p className="text-2xl font-bold text-green-600">₹{(proposal.budget_requested / 100000).toFixed(1)}L</p>
+            <h3 className="font-semibold text-navy">Budget Requested</h3>
+            <p className="text-2xl font-display font-bold text-status-approved">
+              ₹{(proposal.budget_requested / 100000).toFixed(1)}L
+            </p>
           </div>
           <div>
-            <h3 className="font-semibold text-gray-900">Timeline</h3>
-            <p className="text-lg">{proposal.timeline}</p>
+            <h3 className="font-semibold text-navy">Timeline</h3>
+            <p className="text-lg text-ink">{proposal.timeline}</p>
           </div>
         </div>
 
-        <div>
-          <h2 className="text-2xl font-bold mb-2">Expected Outcomes</h2>
-          <p className="text-gray-700 whitespace-pre-wrap">{proposal.expected_outcomes}</p>
+        <div className="border-t border-line pt-6">
+          <h2 className="mb-2 font-display text-xl font-semibold text-navy">Expected Outcomes</h2>
+          <p className="whitespace-pre-wrap text-ink">{proposal.expected_outcomes}</p>
         </div>
 
-        <div className="text-sm text-gray-500">
+        <div className="border-t border-line pt-4 font-mono text-xs text-muted">
           <p>Created: {new Date(proposal.created_at).toLocaleString()}</p>
           <p>Last Updated: {new Date(proposal.updated_at).toLocaleString()}</p>
         </div>
-      </div>
+      </Card>
 
-      {/* Messaging Section */}
-      <div className="bg-white border rounded-lg p-8 mb-8">
-        <h2 className="text-2xl font-bold mb-6">Communication with CSR</h2>
+      <Card className="p-8">
+        <h2 className="mb-6 font-display text-xl font-semibold text-navy">Communication with CSR</h2>
         <ProposalMessages proposalId={params.id as string} currentUserType="NGO" />
-      </div>
+      </Card>
 
-      {/* Actions */}
       <div className="flex gap-4">
         {(proposal.status === 'CHANGES_REQUESTED' || proposal.status === 'ADMIN_REJECTED') && (
-          <button
-            onClick={() => router.push(`/ngo/proposals/${params.id}/edit`)}
-            className="bg-orange-600 text-white px-6 py-3 rounded-lg hover:bg-orange-700 font-semibold"
-          >
+          <Button variant="primary" onClick={() => router.push(`/ngo/proposals/${params.id}/edit`)}>
             Update Proposal
-          </button>
+          </Button>
         )}
-        <button
-          onClick={() => router.back()}
-          className="bg-gray-300 text-gray-700 px-6 py-3 rounded-lg hover:bg-gray-400"
-        >
+        <Button variant="secondary" onClick={() => router.back()}>
           Back
-        </button>
+        </Button>
       </div>
     </div>
   );
