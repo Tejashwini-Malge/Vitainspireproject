@@ -10,6 +10,7 @@ from app.db import get_db
 from app.deps import get_current_user, require_membership
 from app.services.notifications import (
     notify_on_new_message,
+    notify_on_milestone_update,
     notify_on_proposal_approved,
     notify_on_changes_requested,
 )
@@ -17,6 +18,7 @@ from app.domain.compliance import require_compliance_documents
 from app.models import (
     ApprovalRequest,
     Commitment,
+    DeliveryMilestone,
     Document,
     DocumentReviewDecision,
     DocumentType,
@@ -35,11 +37,35 @@ from app.models import (
     Shortlist,
     User,
 )
-from app.schemas import ApprovalRequestIn, ProposalIn, ProposalOut, ProposalMessageIn, ProposalMessageOut, ProposalTimelineOut
+from app.schemas import (
+    ApprovalRequestIn,
+    DeliveryMilestoneOut,
+    DeliveryMilestoneSetIn,
+    DeliveryMilestoneUpdateIn,
+    DeliveryProgressOut,
+    ProposalApprovalIn,
+    ProposalIn,
+    ProposalOut,
+    ProposalMessageIn,
+    ProposalMessageOut,
+    ProposalTimelineOut,
+)
 
 router = APIRouter(tags=["proposals"])
 
 MANAGE = frozenset({Role.OWNER, Role.ADMIN})
+
+
+def _family_version_ids(db: Session, proposal: Proposal) -> list[str]:
+    """Every `proposals.id` sharing this proposal's stable `proposal_id` family key.
+
+    `proposals` is versioned: each revision inserts a new row with a new primary key but
+    the same `proposal_id`. Anything that belongs to the negotiation as a whole rather
+    than to one draft -- the message thread, the milestones -- has to span the family.
+    """
+    return list(
+        db.scalars(select(Proposal.id).where(Proposal.proposal_id == proposal.proposal_id)).all()
+    )
 
 
 # NGO routes
@@ -202,7 +228,19 @@ def list_csr_proposals(user: User = Depends(get_current_user), db: Session = Dep
 
 
 @router.post("/csr/proposals/{proposal_id}/approve", response_model=ProposalOut)
-def approve_proposal(proposal_id: str, user: User = Depends(get_current_user), db: Session = Depends(get_db)) -> ProposalOut:
+def approve_proposal(
+    proposal_id: str,
+    payload: ProposalApprovalIn | None = None,
+    user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+) -> ProposalOut:
+    """Approve a proposal, optionally at a negotiated amount.
+
+    The body is optional and omitting it commits the full requested budget, which is what
+    this endpoint always did. Supplying `amount_minor` commits that amount instead -- the
+    whole point of letting the two sides negotiate the budget in the message thread is
+    that the agreed figure, not the original ask, is what gets committed.
+    """
     proposal = db.get(Proposal, proposal_id)
     if proposal is None:
         raise HTTPException(status.HTTP_404_NOT_FOUND, "Proposal not found")
@@ -218,13 +256,24 @@ def approve_proposal(proposal_id: str, user: User = Depends(get_current_user), d
             f"This proposal is {proposal.status} and is not yet available for your approval",
         )
 
+    requested = proposal.budget_requested
+    amount_minor = payload.amount_minor if payload and payload.amount_minor is not None else requested
+    # Deterministic guard: approving above the ask is not a negotiation outcome, it is a
+    # data-entry error, and the ledger is append-only so it cannot be quietly undone.
+    if amount_minor > requested:
+        raise HTTPException(
+            status.HTTP_422_UNPROCESSABLE_ENTITY,
+            f"Committed amount {amount_minor} exceeds the requested budget {requested}. "
+            "Ask the NGO to submit a revision at the higher figure instead.",
+        )
+
     proposal.status = "APPROVED"
     db.flush()
 
     # Create Commitment
     commitment = Commitment(
         proposal_id=proposal.id,
-        amount_minor=proposal.budget_requested,
+        amount_minor=amount_minor,
         status="PENDING",
     )
     db.add(commitment)
@@ -235,7 +284,7 @@ def approve_proposal(proposal_id: str, user: User = Depends(get_current_user), d
     ledger = FinanceLedger(
         opportunity_id=proposal.opportunity_id,
         ngo_id=proposal.ngo_id,
-        amount_minor=proposal.budget_requested,
+        amount_minor=amount_minor,
         transaction_type="COMMITMENT",
         idempotency_key=idempotency_key,
         recorded_by_user_id=user.id,
@@ -263,11 +312,18 @@ def approve_proposal(proposal_id: str, user: User = Depends(get_current_user), d
         resource_id=proposal.id,
         actor_user_id=user.id,
         org_id=opp.org_id,
-        details={"commitment_id": commitment.id, "ledger_id": ledger.id},
+        details={
+            "commitment_id": commitment.id,
+            "ledger_id": ledger.id,
+            "amount_minor": amount_minor,
+            "budget_requested": requested,
+            "negotiated": amount_minor != requested,
+            "approver_feedback": payload.approver_feedback if payload else None,
+        },
     )
 
     # Trigger notifications
-    notify_on_proposal_approved(db, proposal, user.id)
+    notify_on_proposal_approved(db, proposal, user.id, committed_amount_minor=amount_minor)
 
     db.commit()
     return _proposal_out(proposal)
@@ -297,10 +353,11 @@ def request_changes(
     approval = db.scalar(
         select(ApprovalRequest).where(ApprovalRequest.subject_id == proposal.id, ApprovalRequest.subject_type == "PROPOSAL")
     )
+    feedback = payload.feedback_text
     if approval:
         approval.state = "CHANGES_REQUESTED"
         approval.approver_user_id = user.id
-        approval.approver_feedback = payload.feedback
+        approval.approver_feedback = feedback
 
     # Update proposal status
     proposal.status = "CHANGES_REQUESTED"
@@ -312,11 +369,23 @@ def request_changes(
         resource_id=proposal.id,
         actor_user_id=user.id,
         org_id=opp.org_id,
-        details={"feedback": payload.feedback},
+        details={"feedback": feedback},
     )
 
+    # The feedback is the substance of the request; carry it into the thread so the
+    # negotiation and the formal decision are not two separate conversations.
+    if feedback:
+        db.add(
+            ProposalMessage(
+                proposal_id=proposal.id,
+                sender_id=user.id,
+                sender_type="CSR",
+                content=feedback,
+            )
+        )
+
     # Trigger notifications
-    notify_on_changes_requested(db, proposal, payload.feedback or "", user.id)
+    notify_on_changes_requested(db, proposal, feedback or "", user.id)
 
     db.commit()
     return _proposal_out(proposal)
@@ -523,6 +592,269 @@ Return ONLY a JSON object with these exact keys, no markdown, no commentary:
         return fallback
 
 
+# Delivery milestone routes
+#
+# These are what turns an approved proposal into work the CSR can watch. The NGO owns the
+# plan and the progress; the CSR owns verification. Neither side can write the other's
+# half, and the amounts are checked against the confirmed commitment rather than trusted.
+
+
+def _milestone_out(m: DeliveryMilestone) -> DeliveryMilestoneOut:
+    return DeliveryMilestoneOut(
+        id=m.id,
+        proposal_id=m.proposal_id,
+        commitment_id=m.commitment_id,
+        ngo_id=m.ngo_id,
+        opportunity_id=m.opportunity_id,
+        sequence_num=m.sequence_num,
+        title=m.title,
+        description=m.description,
+        target_date=m.target_date,
+        amount_minor=m.amount_minor,
+        status=m.status,
+        evidence_url=m.evidence_url,
+        completed_at=m.completed_at,
+        verified_at=m.verified_at,
+        verified_by_user_id=m.verified_by_user_id,
+        created_at=m.created_at,
+        updated_at=m.updated_at,
+    )
+
+
+def _approved_commitment(db: Session, proposal: Proposal) -> Commitment:
+    """The confirmed commitment for this proposal family, or a 409 explaining why not."""
+    commitment = db.scalar(
+        select(Commitment).where(Commitment.proposal_id.in_(_family_version_ids(db, proposal)))
+    )
+    if commitment is None:
+        raise HTTPException(
+            status.HTTP_409_CONFLICT,
+            "This proposal has not been approved yet, so there is nothing to deliver against.",
+        )
+    return commitment
+
+
+def _party_for_proposal(db: Session, user: User, proposal: Proposal) -> str:
+    """Return 'NGO' or 'CSR' for a user entitled to see this proposal, else 404/403."""
+    opp = db.get(Opportunity, proposal.opportunity_id)
+    try:
+        require_membership(db, user, proposal.ngo_id)
+        return "NGO"
+    except HTTPException:
+        require_membership(db, user, opp.org_id)
+        return "CSR"
+
+
+@router.get("/proposals/{proposal_id}/milestones", response_model=DeliveryProgressOut)
+def get_delivery_progress(
+    proposal_id: str,
+    user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+) -> DeliveryProgressOut:
+    """The delivery plan and its progress. Both the NGO and the funding CSR read this."""
+    proposal = db.get(Proposal, proposal_id)
+    if proposal is None:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "Proposal not found")
+    _party_for_proposal(db, user, proposal)
+    commitment = _approved_commitment(db, proposal)
+
+    milestones = db.scalars(
+        select(DeliveryMilestone)
+        .where(DeliveryMilestone.proposal_id == proposal.proposal_id)
+        .order_by(DeliveryMilestone.sequence_num.asc())
+    ).all()
+
+    today = datetime.now(UTC).date()
+    completed = [m for m in milestones if m.status in ("COMPLETED", "VERIFIED")]
+    verified = [m for m in milestones if m.status == "VERIFIED"]
+    overdue = [m for m in milestones if m.status not in ("COMPLETED", "VERIFIED") and m.target_date < today]
+    upcoming = [m for m in milestones if m.status not in ("COMPLETED", "VERIFIED")]
+
+    return DeliveryProgressOut(
+        proposal_id=proposal.proposal_id,
+        committed_amount_minor=commitment.amount_minor,
+        milestone_count=len(milestones),
+        completed_count=len(completed),
+        verified_count=len(verified),
+        percent_verified=round(100 * len(verified) / len(milestones)) if milestones else 0,
+        next_due=_milestone_out(min(upcoming, key=lambda m: m.target_date)) if upcoming else None,
+        overdue_count=len(overdue),
+        milestones=[_milestone_out(m) for m in milestones],
+    )
+
+
+@router.post(
+    "/ngo/proposals/{proposal_id}/milestones",
+    response_model=list[DeliveryMilestoneOut],
+    status_code=status.HTTP_201_CREATED,
+)
+def set_delivery_milestones(
+    proposal_id: str,
+    payload: DeliveryMilestoneSetIn,
+    user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+) -> list[DeliveryMilestoneOut]:
+    """The NGO declares its delivery plan against an approved proposal.
+
+    Replaces the existing plan, which is only allowed while no milestone has been reported
+    complete -- once the CSR has started watching progress, the plan it agreed to cannot
+    be rewritten underneath it.
+    """
+    proposal = db.get(Proposal, proposal_id)
+    if proposal is None:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "Proposal not found")
+    require_membership(db, user, proposal.ngo_id, allowed_roles=MANAGE)
+    commitment = _approved_commitment(db, proposal)
+
+    existing = db.scalars(
+        select(DeliveryMilestone).where(DeliveryMilestone.proposal_id == proposal.proposal_id)
+    ).all()
+    if any(m.status != "PENDING" for m in existing):
+        raise HTTPException(
+            status.HTTP_409_CONFLICT,
+            "Work has already been reported against this plan. Milestones can no longer be replaced.",
+        )
+
+    total = sum(m.amount_minor for m in payload.milestones)
+    if total > commitment.amount_minor:
+        raise HTTPException(
+            status.HTTP_422_UNPROCESSABLE_ENTITY,
+            f"Milestone amounts total {total}, which exceeds the committed "
+            f"{commitment.amount_minor}.",
+        )
+
+    for m in existing:
+        db.delete(m)
+    db.flush()
+
+    created: list[DeliveryMilestone] = []
+    for i, item in enumerate(payload.milestones, start=1):
+        milestone = DeliveryMilestone(
+            proposal_id=proposal.proposal_id,
+            commitment_id=commitment.id,
+            ngo_id=proposal.ngo_id,
+            opportunity_id=proposal.opportunity_id,
+            sequence_num=i,
+            title=item.title.strip(),
+            description=item.description.strip(),
+            target_date=item.target_date,
+            amount_minor=item.amount_minor,
+            status="PENDING",
+        )
+        db.add(milestone)
+        created.append(milestone)
+    db.flush()
+
+    record_audit(
+        db,
+        action="delivery.milestones_set",
+        resource_type="proposal",
+        resource_id=proposal.id,
+        actor_user_id=user.id,
+        org_id=proposal.ngo_id,
+        details={"count": len(created), "total_amount_minor": total},
+    )
+    db.commit()
+    return [_milestone_out(m) for m in created]
+
+
+@router.patch("/ngo/milestones/{milestone_id}", response_model=DeliveryMilestoneOut)
+def update_delivery_milestone(
+    milestone_id: str,
+    payload: DeliveryMilestoneUpdateIn,
+    user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+) -> DeliveryMilestoneOut:
+    """The NGO reports progress. Only the NGO moves a milestone to IN_PROGRESS/COMPLETED."""
+    milestone = db.get(DeliveryMilestone, milestone_id)
+    if milestone is None:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "Milestone not found")
+    require_membership(db, user, milestone.ngo_id, allowed_roles=MANAGE)
+
+    if milestone.status == "VERIFIED":
+        raise HTTPException(
+            status.HTTP_409_CONFLICT, "This milestone has been verified by the funder and is final."
+        )
+
+    if payload.evidence_url is not None:
+        milestone.evidence_url = payload.evidence_url.strip() or None
+
+    if payload.status is not None:
+        if payload.status not in ("PENDING", "IN_PROGRESS", "COMPLETED"):
+            raise HTTPException(
+                status.HTTP_422_UNPROCESSABLE_ENTITY,
+                "Status must be PENDING, IN_PROGRESS or COMPLETED. Only the funder marks a "
+                "milestone VERIFIED.",
+            )
+        milestone.status = payload.status
+        milestone.completed_at = datetime.now(UTC) if payload.status == "COMPLETED" else None
+
+    milestone.updated_at = datetime.now(UTC)
+    db.flush()
+
+    proposal = db.scalar(
+        select(Proposal).where(
+            Proposal.proposal_id == milestone.proposal_id, Proposal.is_current == True
+        )
+    )
+    record_audit(
+        db,
+        action="delivery.milestone_updated",
+        resource_type="delivery_milestone",
+        resource_id=milestone.id,
+        actor_user_id=user.id,
+        org_id=milestone.ngo_id,
+        details={"status": milestone.status, "evidence_url": milestone.evidence_url},
+    )
+    if proposal is not None:
+        notify_on_milestone_update(db, proposal, milestone.title, milestone.status, user.id)
+    db.commit()
+    return _milestone_out(milestone)
+
+
+@router.post("/csr/milestones/{milestone_id}/verify", response_model=DeliveryMilestoneOut)
+def verify_delivery_milestone(
+    milestone_id: str,
+    user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+) -> DeliveryMilestoneOut:
+    """The funding CSR confirms a completed milestone. Terminal state."""
+    milestone = db.get(DeliveryMilestone, milestone_id)
+    if milestone is None:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "Milestone not found")
+
+    opp = db.get(Opportunity, milestone.opportunity_id)
+    if opp is None:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "Milestone not found")
+    require_membership(db, user, opp.org_id, allowed_roles=MANAGE)
+
+    if milestone.status == "VERIFIED":
+        return _milestone_out(milestone)
+    if milestone.status != "COMPLETED":
+        raise HTTPException(
+            status.HTTP_409_CONFLICT,
+            f"This milestone is {milestone.status}. Only a COMPLETED milestone can be verified.",
+        )
+
+    milestone.status = "VERIFIED"
+    milestone.verified_at = datetime.now(UTC)
+    milestone.verified_by_user_id = user.id
+    milestone.updated_at = datetime.now(UTC)
+    db.flush()
+
+    record_audit(
+        db,
+        action="delivery.milestone_verified",
+        resource_type="delivery_milestone",
+        resource_id=milestone.id,
+        actor_user_id=user.id,
+        org_id=opp.org_id,
+        details={"ngo_id": milestone.ngo_id},
+    )
+    db.commit()
+    return _milestone_out(milestone)
+
+
 # Messaging routes
 @router.get("/proposals/{proposal_id}/messages", response_model=list[ProposalMessageOut])
 def get_proposal_messages(
@@ -541,9 +873,13 @@ def get_proposal_messages(
     except HTTPException:
         require_membership(db, user, opp.org_id)
 
+    # Read across every version of this proposal, not just the row addressed in the URL.
+    # Each revision creates a new `proposals` row, and messages are stored against the row
+    # id that was current when they were sent -- so a thread keyed to one row loses the
+    # whole negotiation the moment the NGO submits the revision that negotiation asked for.
     messages = db.scalars(
         select(ProposalMessage)
-        .where(ProposalMessage.proposal_id == proposal_id)
+        .where(ProposalMessage.proposal_id.in_(_family_version_ids(db, proposal)))
         .order_by(ProposalMessage.created_at.asc())
     ).all()
 

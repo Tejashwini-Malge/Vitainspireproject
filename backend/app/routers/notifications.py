@@ -120,6 +120,7 @@ def _notification_out(n: Notification) -> NotificationOut:
         id=n.id,
         recipient_user_id=n.recipient_user_id,
         proposal_id=n.proposal_id,
+        opportunity_id=n.opportunity_id,
         notification_type=n.notification_type,
         title=n.title,
         message=n.message,

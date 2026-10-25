@@ -48,6 +48,7 @@ def create_app() -> FastAPI:
     app.include_router(pan_verification.router)
     app.include_router(donations.router)
     app.include_router(opportunities.router)
+    app.include_router(opportunities.ngo_router)
     app.include_router(proposals.router)
     app.include_router(campaigns.router)
     app.include_router(campaigns_public.router)

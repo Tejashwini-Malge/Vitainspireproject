@@ -430,6 +430,19 @@ class ShortlistIn(BaseModel):
     ngo_ids: list[str] = Field(min_length=1)
 
 
+class ShortlistedOpportunityOut(BaseModel):
+    """An opportunity the caller's NGO has been shortlisted for, with where it stands."""
+
+    opportunity: OpportunityOut
+    csr_org_id: str
+    csr_org_name: str
+    shortlisted_at: datetime
+    proposal_id: str | None = None
+    proposal_status: str | None = None
+    can_submit_proposal: bool
+    blockers: list[str] = Field(default_factory=list)
+
+
 class ShortlistOut(BaseModel):
     id: str
     shortlist_id: str
@@ -470,6 +483,77 @@ class ProposalOut(BaseModel):
 class ApprovalRequestIn(BaseModel):
     decision: str  # APPROVED, REJECTED, CHANGES_REQUESTED
     feedback: str | None = Field(default=None, max_length=1000)
+    # The CSR's approve/request-changes screens post this spelling; accept both rather
+    # than silently dropping the reviewer's words.
+    approver_feedback: str | None = Field(default=None, max_length=1000)
+
+    @property
+    def feedback_text(self) -> str | None:
+        return self.feedback or self.approver_feedback
+
+
+class ProposalApprovalIn(BaseModel):
+    """What the CSR approves, which after a negotiation may differ from what was asked.
+
+    `amount_minor` is the committed amount in integer minor units. Omit it to commit the
+    full requested budget.
+    """
+
+    decision: str | None = None
+    amount_minor: int | None = Field(default=None, gt=0)
+    approver_feedback: str | None = Field(default=None, max_length=1000)
+
+
+class DeliveryMilestoneIn(BaseModel):
+    title: str = Field(min_length=3, max_length=300)
+    description: str = Field(default="", max_length=2000)
+    target_date: date
+    amount_minor: int = Field(default=0, ge=0)
+
+
+class DeliveryMilestoneSetIn(BaseModel):
+    """The NGO's full milestone plan. Replaces any plan not yet under way."""
+
+    milestones: list[DeliveryMilestoneIn] = Field(min_length=1, max_length=50)
+
+
+class DeliveryMilestoneUpdateIn(BaseModel):
+    status: str | None = None  # IN_PROGRESS, COMPLETED
+    evidence_url: str | None = Field(default=None, max_length=600)
+
+
+class DeliveryMilestoneOut(BaseModel):
+    id: str
+    proposal_id: str
+    commitment_id: str
+    ngo_id: str
+    opportunity_id: str
+    sequence_num: int
+    title: str
+    description: str
+    target_date: date
+    amount_minor: int
+    status: str
+    evidence_url: str | None
+    completed_at: datetime | None
+    verified_at: datetime | None
+    verified_by_user_id: str | None
+    created_at: datetime
+    updated_at: datetime
+
+
+class DeliveryProgressOut(BaseModel):
+    """Roll-up the CSR sees for an approved proposal."""
+
+    proposal_id: str
+    committed_amount_minor: int
+    milestone_count: int
+    completed_count: int
+    verified_count: int
+    percent_verified: int
+    next_due: DeliveryMilestoneOut | None = None
+    overdue_count: int
+    milestones: list[DeliveryMilestoneOut]
 
 
 class FinanceLedgerOut(BaseModel):
@@ -533,7 +617,9 @@ class ProposalEscalationOut(BaseModel):
 class NotificationOut(BaseModel):
     id: str
     recipient_user_id: str
-    proposal_id: str
+    # Null on a SHORTLISTED notification, which precedes any proposal.
+    proposal_id: str | None = None
+    opportunity_id: str | None = None
     notification_type: str
     title: str
     message: str

@@ -413,6 +413,46 @@ class Commitment(Base):
     confirmed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
 
 
+class DeliveryMilestone(Base):
+    """A unit of delivery the NGO committed to after a proposal was approved.
+
+    This is the execution half of the funding flow: the NGO declares milestones against
+    its confirmed commitment, moves them as work happens, and the funding CSR reads the
+    same rows and verifies completion. Distinct from CampaignMilestone, which belongs to
+    public fundraising campaigns and has no opportunity or proposal behind it.
+
+    `proposal_id` is the *stable* Proposal.proposal_id family key, not a version row id,
+    so milestones survive a proposal revision.
+    """
+
+    __tablename__ = "delivery_milestones"
+    __table_args__ = (
+        UniqueConstraint("proposal_id", "sequence_num", name="uq_delivery_milestone_proposal_sequence"),
+    )
+
+    STATUSES = ("PENDING", "IN_PROGRESS", "COMPLETED", "VERIFIED")
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=_uuid)
+    proposal_id: Mapped[str] = mapped_column(String(36), index=True)
+    commitment_id: Mapped[str] = mapped_column(ForeignKey("commitments.id"), index=True)
+    ngo_id: Mapped[str] = mapped_column(ForeignKey("organizations.id"), index=True)
+    opportunity_id: Mapped[str] = mapped_column(ForeignKey("opportunities.id"), index=True)
+    sequence_num: Mapped[int] = mapped_column(Integer)
+    title: Mapped[str] = mapped_column(String(300))
+    description: Mapped[str] = mapped_column(Text, default="")
+    target_date: Mapped[date] = mapped_column(Date)
+    # Minor units, as everywhere else. The sum across a proposal's milestones is checked
+    # against the confirmed commitment before the set is accepted.
+    amount_minor: Mapped[int] = mapped_column(Integer, default=0)
+    status: Mapped[str] = mapped_column(String(20), default="PENDING")
+    evidence_url: Mapped[str | None] = mapped_column(String(600), nullable=True)
+    completed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    verified_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    verified_by_user_id: Mapped[str | None] = mapped_column(ForeignKey("users.id"), nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+
+
 class FinanceLedger(Base):
     """Append-only ledger of confirmed financial transactions."""
 
@@ -493,7 +533,10 @@ class Notification(Base):
 
     id: Mapped[str] = mapped_column(String(36), primary_key=True, default=_uuid)
     recipient_user_id: Mapped[str] = mapped_column(ForeignKey("users.id"), index=True)
-    proposal_id: Mapped[str] = mapped_column(ForeignKey("proposals.id"), index=True)
+    # Nullable: a SHORTLISTED notification is raised before any proposal exists, so it
+    # carries only the opportunity. Message and decision notifications carry both.
+    proposal_id: Mapped[str | None] = mapped_column(ForeignKey("proposals.id"), index=True, nullable=True)
+    opportunity_id: Mapped[str | None] = mapped_column(ForeignKey("opportunities.id"), index=True, nullable=True)
     notification_type: Mapped[str] = mapped_column(String(50))
     title: Mapped[str] = mapped_column(String(200))
     message: Mapped[str] = mapped_column(Text)
