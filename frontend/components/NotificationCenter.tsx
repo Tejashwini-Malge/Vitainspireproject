@@ -8,7 +8,9 @@ import { MessageSquare, CheckCircle2, PencilLine, Megaphone } from 'lucide-react
 interface Notification {
   id: string;
   recipient_user_id: string;
-  proposal_id: string;
+  /** Null on SHORTLISTED, which is raised before any proposal exists. */
+  proposal_id: string | null;
+  opportunity_id: string | null;
   notification_type: string;
   title: string;
   message: string;
@@ -20,6 +22,19 @@ interface Notification {
 
 interface NotificationCenterProps {
   onClose?: () => void;
+}
+
+/**
+ * Where clicking a notification should land.
+ *
+ * A SHORTLISTED notification carries no proposal -- that is the whole point, the NGO has
+ * not written one yet -- so it goes to the invitations list rather than to
+ * `/ngo/proposals/null`.
+ */
+function notificationHref(notif: Notification): string {
+  if (notif.proposal_id) return `/ngo/proposals/${notif.proposal_id}`;
+  if (notif.notification_type === 'SHORTLISTED') return '/ngo/opportunities';
+  return '/notifications';
 }
 
 export default function NotificationCenter({ onClose }: NotificationCenterProps) {
@@ -72,6 +87,10 @@ export default function NotificationCenter({ onClose }: NotificationCenterProps)
         return <CheckCircle2 className="h-4 w-4" />;
       case 'CHANGES_REQUESTED':
         return <PencilLine className="h-4 w-4" />;
+      case 'SHORTLISTED':
+        return <Star className="h-4 w-4" />;
+      case 'MILESTONE_UPDATED':
+        return <Flag className="h-4 w-4" />;
       default:
         return <Megaphone className="h-4 w-4" />;
     }
@@ -134,7 +153,7 @@ export default function NotificationCenter({ onClose }: NotificationCenterProps)
           notifications.map((notif) => (
             <Link
               key={notif.id}
-              href={`/ngo/proposals/${notif.proposal_id}`}
+              href={notificationHref(notif)}
               className={`block border-b border-line p-4 transition hover:bg-navy/5 ${
                 !notif.is_read ? 'bg-teal/5' : ''
               }`}

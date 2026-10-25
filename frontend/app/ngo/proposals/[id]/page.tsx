@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react';
 import { useRouter, useParams } from 'next/navigation';
 import { api, getToken } from '@/lib/api';
 import ProposalMessages from '@/components/ProposalMessages';
+import DeliveryMilestones from '@/components/DeliveryMilestones';
 import { PageHeader } from '@/components/ui/page-header';
 import { Card } from '@/components/ui/card';
 import { Badge, type BadgeTone } from '@/components/ui/badge';
@@ -119,6 +120,10 @@ export default function NGOProposalDetailPage() {
       <Card className="p-8">
         <h2 className="mb-6 font-display text-xl font-semibold text-navy">Communication with CSR</h2>
         <ProposalMessages proposalId={params.id as string} currentUserType="NGO" />
+      </Card>
+
+      <Card className="p-8">
+        <DeliveryMilestones proposalId={params.id as string} role="NGO" />
       </Card>
 
       <div className="flex gap-4">

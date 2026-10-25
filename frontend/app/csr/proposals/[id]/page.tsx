@@ -5,6 +5,7 @@ import { useRouter, useParams } from 'next/navigation';
 import Link from 'next/link';
 import { api, getToken } from '@/lib/api';
 import ProposalMessages from '@/components/ProposalMessages';
+import DeliveryMilestones from '@/components/DeliveryMilestones';
 import { PageHeader } from '@/components/ui/page-header';
 import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -105,6 +106,10 @@ export default function CSRProposalDetailPage() {
       <Card className="p-8">
         <h2 className="mb-6 text-lg font-semibold text-navy">Communication with NGO</h2>
         <ProposalMessages proposalId={params.id as string} currentUserType="CSR" />
+      </Card>
+
+      <Card className="p-8">
+        <DeliveryMilestones proposalId={params.id as string} role="CSR" />
       </Card>
 
       {/* Decision Actions */}
