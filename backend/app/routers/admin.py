@@ -7,26 +7,30 @@ from sqlalchemy.orm import Session
 
 from app.ai.assist import draft_verification_assist
 from app.ai.document_assist import draft_document_assist
-from app.audit import record_audit
+from app.audit import _row_hash, record_audit
 from app.db import get_db
 from app.deps import is_member, require_platform_admin
 from app.domain.review import ReviewError, decide
 from app.models import (
-    ApprovalRequest, Document, DocumentReviewDecision, NgoProfile, Opportunity, Organization, OrgType,
-    PanVerification, PanVerificationDecision, Proposal, ReviewStatus, User, VerificationStatus,
+    ApprovalRequest, AuditEvent, Document, DocumentReviewDecision, FinanceLedger, NgoProfile, Opportunity,
+    Organization, OrgType, PanVerification, PanVerificationDecision, Proposal, Receivable, ReviewStatus, Shortlist,
+    User, VerificationStatus,
     Campaign, CampaignDonation, Donation, EmailQueue, Membership, Payment, SentEmail, Project, ProjectStatus
 )
 from app.routers.documents import _decision_out, file_response
+from app.routers.opportunities import _shortlist_out, create_shortlist_revision
 from app.routers.pan_verification import _decision_out as _pan_decision_out
 from app.routers.projects import _project_out
-from app.routers.proposals import _proposal_out
+from app.routers.proposals import _proposal_out, _receivable_out
 from app.schemas import (
     AdminDecisionOut, AdminPanDecisionOut, AdminPanQueueItemOut, AdminQueueItemOut, OrgOut, ReviewDecisionIn,
     VerificationAssistOut, VerificationDecisionIn,
     FundraisingTrendOut, CampaignPerformanceOut, EmailEngagementOut, QueueMetricsOut, NgoPerfMetricsOut,
     DonorSegmentOut, AdminDashboardOut, DocumentAssistOut, DocumentFindingOut,
     AdminIndividualDonorRowOut, AdminOrgRowOut, AdminPaymentRowOut, AdminProjectQueueItemOut, AdminProjectRowOut,
-    AdminProposalQueueItemOut, ProjectOut, ProjectReviewDecisionIn, ProposalAdminDecisionIn, ProposalOut
+    AdminProposalQueueItemOut, AdminShortlistRowOut, AuditEventOut, AuditVerifyOut, ProjectOut,
+    ProjectReviewDecisionIn, ProposalAdminDecisionIn, ProposalOut, ReceivableOut, ReceivableReconcileIn,
+    ReviewRequestIn, ShortlistOut, ShortlistReorderIn
 )
 from app.storage_dep import get_storage
 
@@ -41,6 +45,8 @@ def _org_out(org: Organization) -> OrgOut:
         verification_status=org.verification_status,
         verification_reason=org.verification_reason,
         verified_at=org.verified_at,
+        review_due_at=org.review_due_at,
+        review_reason=org.review_reason,
     )
 
 
@@ -74,13 +80,19 @@ def decide_verification(
     if is_member(db, admin, org_id):
         # Reviewers cannot verify an organization they belong to.
         raise HTTPException(status.HTTP_403_FORBIDDEN, "You cannot review an organization you belong to")
-    if org.verification_status != VerificationStatus.PENDING:
-        # A decided organization is changed only through a later, explicit workflow, never silently.
+    if org.verification_status != VerificationStatus.PENDING and org.review_due_at is None:
+        # A decided organization is changed only through a later, explicit workflow, never
+        # silently -- that workflow is request-review below, which is the "later, explicit"
+        # step: re-decision is only possible once an admin has explicitly flagged it.
         raise HTTPException(status.HTTP_409_CONFLICT, f"Organization is already {org.verification_status.value}")
     previous = org.verification_status.value
+    was_review_due = org.review_due_at is not None
     org.verification_status = payload.decision
     org.verification_reason = (payload.reason or "").strip() or None
     org.verified_at = datetime.now(UTC) if payload.decision == VerificationStatus.APPROVED else None
+    org.review_due_at = None
+    org.review_requested_by_user_id = None
+    org.review_reason = None
     record_audit(
         db,
         action="org.verification_decided",
@@ -88,8 +100,97 @@ def decide_verification(
         resource_id=org.id,
         actor_user_id=admin.id,
         org_id=org.id,
-        details={"from": previous, "to": payload.decision.value, "decided_at": datetime.now(UTC).isoformat()},
+        details={
+            "from": previous, "to": payload.decision.value, "decided_at": datetime.now(UTC).isoformat(),
+            "was_review_due": was_review_due,
+        },
     )
+    db.commit()
+    return _org_out(org)
+
+
+@router.get("/organizations/review-due", response_model=list[OrgOut])
+def review_due_queue(
+    _admin: User = Depends(require_platform_admin),
+    db: Session = Depends(get_db),
+) -> list[OrgOut]:
+    """Decided organisations an admin has explicitly flagged for another look (ADM-004):
+    annual renewal, an expiring document, a complaint -- distinct from the first-time
+    verification-queue above, which is only PENDING organisations.
+    """
+    orgs = db.scalars(
+        select(Organization)
+        .where(Organization.review_due_at.is_not(None))
+        .order_by(Organization.review_due_at)
+    ).all()
+    return [_org_out(o) for o in orgs]
+
+
+@router.post("/organizations/{org_id}/request-review", response_model=OrgOut)
+def request_review(
+    org_id: str,
+    payload: ReviewRequestIn,
+    admin: User = Depends(require_platform_admin),
+    db: Session = Depends(get_db),
+) -> OrgOut:
+    """Flag an already-decided organisation for re-verification. Does not change
+    verification_status -- an APPROVED org keeps every privilege that grants it until an
+    admin actually re-decides via POST .../verification, which is unblocked by this flag.
+    """
+    org = db.get(Organization, org_id)
+    if org is None:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "Organization not found")
+    if org.verification_status == VerificationStatus.PENDING:
+        raise HTTPException(
+            status.HTTP_409_CONFLICT,
+            "Organization has not been decided yet -- it is already in the first-time verification queue",
+        )
+    if org.review_due_at is not None:
+        raise HTTPException(status.HTTP_409_CONFLICT, "A review is already pending for this organization")
+
+    org.review_due_at = datetime.now(UTC)
+    org.review_requested_by_user_id = admin.id
+    org.review_reason = payload.reason.strip()
+    record_audit(
+        db,
+        action="org.review_requested",
+        resource_type="organization",
+        resource_id=org.id,
+        actor_user_id=admin.id,
+        org_id=org.id,
+        details={"reason": org.review_reason, "status_at_request": org.verification_status.value},
+    )
+    db.commit()
+    return _org_out(org)
+
+
+@router.post("/organizations/{org_id}/dismiss-review", response_model=OrgOut)
+def dismiss_review(
+    org_id: str,
+    admin: User = Depends(require_platform_admin),
+    db: Session = Depends(get_db),
+) -> OrgOut:
+    """Close out a flagged review without issuing a new decision -- the admin looked and
+    the existing verification_status still stands.
+    """
+    org = db.get(Organization, org_id)
+    if org is None:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "Organization not found")
+    if org.review_due_at is None:
+        raise HTTPException(status.HTTP_409_CONFLICT, "No review is pending for this organization")
+
+    record_audit(
+        db,
+        action="org.review_dismissed",
+        resource_type="organization",
+        resource_id=org.id,
+        actor_user_id=admin.id,
+        org_id=org.id,
+        details={"review_reason": org.review_reason},
+    )
+    org.review_due_at = None
+    org.review_requested_by_user_id = None
+    org.review_reason = None
     db.commit()
     return _org_out(org)
 
@@ -686,6 +787,7 @@ def organization_directory(
             verification_status=o.verification_status.value,
             verification_reason=o.verification_reason,
             verified_at=o.verified_at,
+            review_due_at=o.review_due_at,
             created_at=o.created_at,
             member_count=members.get(o.id, 0),
             project_count=projects.get(o.id, 0),
@@ -1004,3 +1106,256 @@ def decide_proposal_admin_review(
     )
     db.commit()
     return _proposal_out(proposal)
+
+
+@router.get("/shortlists", response_model=list[AdminShortlistRowOut])
+def shortlist_directory(
+    opportunity_id: str | None = None,
+    current_only: bool = True,
+    _admin: User = Depends(require_platform_admin),
+    db: Session = Depends(get_db),
+) -> list[AdminShortlistRowOut]:
+    """Every shortlist revision across every opportunity, for admin oversight.
+
+    Read-only visibility into a CSR-authored decision (ADM-006): this does not gate
+    shortlist creation or the NGO notification it already sends -- see
+    create_shortlist_revision's reuse by `reorder_shortlist` below for how an admin can
+    act on what they see here.
+    """
+    query = select(Shortlist)
+    if opportunity_id:
+        query = query.where(Shortlist.opportunity_id == opportunity_id)
+    if current_only:
+        query = query.where(Shortlist.is_current == True)
+    shortlists = db.scalars(query.order_by(Shortlist.selected_at.desc())).all()
+    if not shortlists:
+        return []
+
+    opp_ids = {s.opportunity_id for s in shortlists}
+    opps = {o.id: o for o in db.scalars(select(Opportunity).where(Opportunity.id.in_(opp_ids)))}
+    org_ids = {o.org_id for o in opps.values()}
+    org_names = dict(db.execute(select(Organization.id, Organization.name).where(Organization.id.in_(org_ids))).all())
+
+    return [
+        AdminShortlistRowOut(
+            id=s.id,
+            opportunity_id=s.opportunity_id,
+            opportunity_title=opps[s.opportunity_id].title if s.opportunity_id in opps else "(deleted opportunity)",
+            csr_org_name=org_names.get(opps[s.opportunity_id].org_id, "(unknown)") if s.opportunity_id in opps else "(unknown)",
+            revision_num=s.revision_num,
+            ngo_ids=s.ngo_ids,
+            is_current=s.is_current,
+            selected_by_user_id=s.selected_by_user_id,
+            selected_at=s.selected_at,
+        )
+        for s in shortlists
+    ]
+
+
+@router.post("/opportunities/{opp_id}/shortlist/reorder", response_model=ShortlistOut, status_code=status.HTTP_201_CREATED)
+def reorder_shortlist(
+    opp_id: str,
+    payload: ShortlistReorderIn,
+    admin: User = Depends(require_platform_admin),
+    db: Session = Depends(get_db),
+) -> ShortlistOut:
+    """An admin supersedes the CSR's current shortlist with a reordered (or trimmed) one.
+
+    Reuses the exact validation, notification, and audit path a CSR's own shortlist call
+    uses -- the only difference is who acted and the audit action name, so an admin-driven
+    revision is indistinguishable from a CSR one except by `selected_by_user_id` and this
+    audit trail.
+    """
+    opp = db.get(Opportunity, opp_id)
+    if opp is None:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "Opportunity not found")
+
+    shortlist = create_shortlist_revision(
+        db, opp, payload.ngo_ids, admin.id, action="shortlist.reordered_by_admin"
+    )
+    db.commit()
+    return _shortlist_out(shortlist)
+
+
+def _audit_out(e: AuditEvent) -> AuditEventOut:
+    return AuditEventOut(
+        id=e.id,
+        seq=e.seq,
+        occurred_at=e.occurred_at,
+        actor_user_id=e.actor_user_id,
+        actor_service=e.actor_service,
+        action=e.action,
+        resource_type=e.resource_type,
+        resource_id=e.resource_id,
+        org_id=e.org_id,
+        details=e.details,
+        correlation_id=e.correlation_id,
+        prev_hash=e.prev_hash,
+        row_hash=e.row_hash,
+    )
+
+
+@router.get("/audit/export", response_model=list[AuditEventOut])
+def export_audit(
+    org_id: str | None = None,
+    resource_type: str | None = None,
+    action: str | None = None,
+    since: datetime | None = None,
+    until: datetime | None = None,
+    limit: int = 1000,
+    offset: int = 0,
+    _admin: User = Depends(require_platform_admin),
+    db: Session = Depends(get_db),
+) -> list[AuditEventOut]:
+    """Export the append-only audit trail (ADM-017, NEG-013), in insertion order.
+
+    Every row carries its own row_hash and the prior row's prev_hash, so a client can
+    verify the chain independently of this endpoint -- or just call GET /audit/verify.
+    """
+    if limit < 1 or limit > 5000:
+        raise HTTPException(status.HTTP_422_UNPROCESSABLE_ENTITY, "limit must be between 1 and 5000")
+
+    query = select(AuditEvent)
+    if org_id:
+        query = query.where(AuditEvent.org_id == org_id)
+    if resource_type:
+        query = query.where(AuditEvent.resource_type == resource_type)
+    if action:
+        query = query.where(AuditEvent.action == action)
+    if since:
+        query = query.where(AuditEvent.occurred_at >= since)
+    if until:
+        query = query.where(AuditEvent.occurred_at <= until)
+
+    rows = db.scalars(query.order_by(AuditEvent.seq).offset(offset).limit(limit)).all()
+    return [_audit_out(e) for e in rows]
+
+
+@router.get("/audit/verify", response_model=AuditVerifyOut)
+def verify_audit_chain(
+    since_seq: int = 0,
+    limit: int = 5000,
+    _admin: User = Depends(require_platform_admin),
+    db: Session = Depends(get_db),
+) -> AuditVerifyOut:
+    """Recompute each row's hash from its stored content and the previous row's stored
+    hash, and compare to what is stored. A mismatch anywhere means a row was edited,
+    deleted-and-reinserted, or inserted out of order after the fact -- the append-only
+    trigger (see migration 0002) should make that impossible through normal application
+    code, so a failure here means something bypassed it (e.g. a direct superuser write).
+
+    Rows written before this chain existed have a null row_hash and are skipped rather
+    than reported as broken; verification picks up from the first hashed row at or after
+    `since_seq`.
+    """
+    if limit < 1 or limit > 20000:
+        raise HTTPException(status.HTTP_422_UNPROCESSABLE_ENTITY, "limit must be between 1 and 20000")
+
+    rows = db.scalars(
+        select(AuditEvent)
+        .where(AuditEvent.seq >= since_seq)
+        .order_by(AuditEvent.seq)
+        .limit(limit)
+    ).all()
+
+    checked = 0
+    expected_prev: str | None = None
+    chain_started = False
+    for row in rows:
+        if row.row_hash is None:
+            continue  # predates the chain
+        if chain_started and row.prev_hash != expected_prev:
+            return AuditVerifyOut(
+                checked=checked, valid=False, first_broken_seq=row.seq,
+                reason="prev_hash does not match the previous row's row_hash -- a row is missing, reordered, or forged",
+            )
+        recomputed = _row_hash(
+            occurred_at=row.occurred_at, action=row.action, resource_type=row.resource_type,
+            resource_id=row.resource_id, actor_user_id=row.actor_user_id, org_id=row.org_id,
+            details=row.details, correlation_id_value=row.correlation_id, prev_hash=row.prev_hash,
+        )
+        if recomputed != row.row_hash:
+            return AuditVerifyOut(
+                checked=checked, valid=False, first_broken_seq=row.seq,
+                reason="row_hash does not match this row's own stored content -- the row was edited after being written",
+            )
+        checked += 1
+        expected_prev = row.row_hash
+        chain_started = True
+
+    return AuditVerifyOut(checked=checked, valid=True)
+
+
+@router.get("/receivables", response_model=list[ReceivableOut])
+def receivables_directory(
+    status_filter: str | None = None,
+    _admin: User = Depends(require_platform_admin),
+    db: Session = Depends(get_db),
+) -> list[ReceivableOut]:
+    """Every declared payment tranche across every commitment, for admin/finance
+    oversight -- the queue a finance reviewer works from to reconcile incoming transfers.
+    """
+    query = select(Receivable)
+    if status_filter:
+        query = query.where(Receivable.status == status_filter)
+    rows = db.scalars(query.order_by(Receivable.due_date)).all()
+    return [_receivable_out(r) for r in rows]
+
+
+@router.post("/receivables/{receivable_id}/reconcile", response_model=ReceivableOut)
+def reconcile_receivable(
+    receivable_id: str,
+    payload: ReceivableReconcileIn,
+    admin: User = Depends(require_platform_admin),
+    db: Session = Depends(get_db),
+) -> ReceivableOut:
+    """Admin/finance confirms a tranche's bank transfer cleared, by its UTR.
+
+    Writes a second, distinct FinanceLedger entry ("RECEIVED") alongside the "COMMITMENT"
+    entry already written at proposal approval -- that one was an intent to fund, this one
+    is a record that money actually arrived. The UTR is unique platform-wide (enforced at
+    the database level too) so the same bank transfer can never reconcile two tranches.
+    """
+    receivable = db.get(Receivable, receivable_id)
+    if receivable is None:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "Receivable not found")
+    if receivable.status == "RECONCILED":
+        raise HTTPException(status.HTTP_409_CONFLICT, "This receivable has already been reconciled")
+
+    existing_utr = db.scalar(select(Receivable).where(Receivable.utr == payload.utr))
+    if existing_utr is not None:
+        raise HTTPException(
+            status.HTTP_409_CONFLICT,
+            f"UTR {payload.utr} has already been used to reconcile a different receivable",
+        )
+
+    receivable.status = "RECONCILED"
+    receivable.utr = payload.utr
+    receivable.notes = payload.notes
+    receivable.reconciled_at = datetime.now(UTC)
+    receivable.reconciled_by_user_id = admin.id
+    receivable.updated_at = datetime.now(UTC)
+    db.flush()
+
+    ledger = FinanceLedger(
+        opportunity_id=receivable.opportunity_id,
+        ngo_id=receivable.ngo_id,
+        amount_minor=receivable.amount_minor,
+        transaction_type="RECEIVED",
+        idempotency_key=f"receivable_{receivable.id}_reconciled",
+        recorded_by_user_id=admin.id,
+    )
+    db.add(ledger)
+    db.flush()
+
+    record_audit(
+        db,
+        action="receivable.reconciled",
+        resource_type="receivable",
+        resource_id=receivable.id,
+        actor_user_id=admin.id,
+        org_id=receivable.ngo_id,
+        details={"utr": payload.utr, "amount_minor": receivable.amount_minor, "ledger_id": ledger.id},
+    )
+    db.commit()
+    return _receivable_out(receivable)

@@ -20,8 +20,9 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from app.config import settings
-from app.domain.compliance import missing_required_documents
+from app.domain.compliance import approved_doc_types, missing_required_documents
 from app.models import (
+    DocumentType,
     NgoProfile,
     Opportunity,
     Organization,
@@ -66,7 +67,9 @@ def _overlap_ratio(wanted: set[str], have: set[str]) -> float:
     return len(wanted & have) / len(wanted)
 
 
-def eligibility_reasons(db: Session, org: Organization, profile: NgoProfile | None) -> list[str]:
+def eligibility_reasons(
+    db: Session, org: Organization, profile: NgoProfile | None, opp: Opportunity | None = None
+) -> list[str]:
     """Deterministic hard gate. An empty list means this NGO may be shortlisted."""
     reasons: list[str] = []
     if org.org_type is not OrgType.NGO:
@@ -81,6 +84,8 @@ def eligibility_reasons(db: Session, org: Organization, profile: NgoProfile | No
     if missing:
         names = ", ".join(sorted(d.value for d in missing))
         reasons.append(f"Missing approved compliance documents: {names}")
+    if opp is not None and opp.fcra_required and DocumentType.FCRA not in approved_doc_types(db, org.id):
+        reasons.append("This opportunity requires FCRA registration, which is not approved for this NGO")
     return reasons
 
 
@@ -137,6 +142,9 @@ def _score_candidate(
         else ("Geography: does not list the requested area" if wanted_geos else "Geography: unrestricted")
     )
     parts.append("Compliance: all required documents approved")
+    if opp.fcra_required:
+        # Reaching this point already means the FCRA gate in eligibility_reasons passed.
+        parts.append("FCRA: registered, as this opportunity requires")
     parts.append(f"Operating for {years} years" if years else "Founding year not stated")
     if profile_gaps:
         parts.append(f"Profile incomplete: {', '.join(profile_gaps)}")
@@ -223,7 +231,7 @@ def rank_candidates(db: Session, opp: Opportunity) -> tuple[list[Candidate], lis
     ineligible: list[tuple[str, list[str]]] = []
     for org in orgs:
         profile = db.scalar(select(NgoProfile).where(NgoProfile.org_id == org.id))
-        reasons = eligibility_reasons(db, org, profile)
+        reasons = eligibility_reasons(db, org, profile, opp)
         if reasons or profile is None:
             ineligible.append((org.id, reasons))
             continue

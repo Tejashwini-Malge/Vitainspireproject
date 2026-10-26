@@ -64,6 +64,7 @@ def create_opportunity(
         budget_max=payload.budget_max,
         deadline=payload.deadline,
         requirements_text=payload.requirements_text.strip(),
+        fcra_required=payload.fcra_required,
     )
     db.add(opp)
     db.flush()
@@ -116,21 +117,17 @@ def list_opportunities(
     return [_opportunity_out(o) for o in opps]
 
 
-@router.post("/shortlist", response_model=ShortlistOut, status_code=status.HTTP_201_CREATED)
-def create_shortlist(
-    payload: ShortlistIn,
-    user: User = Depends(get_current_user),
-    db: Session = Depends(get_db),
-) -> ShortlistOut:
-    opp = db.get(Opportunity, payload.opportunity_id)
-    if opp is None:
-        raise HTTPException(status.HTTP_404_NOT_FOUND, "Opportunity not found")
-    require_membership(db, user, opp.org_id, allowed_roles=MANAGE)
-
+def create_shortlist_revision(
+    db: Session, opp: Opportunity, raw_ngo_ids: list[str], actor_user_id: str, *, action: str
+) -> Shortlist:
+    """Shared by the CSR-authored shortlist endpoint and the admin reorder endpoint: validate
+    candidates, supersede the current revision, notify newly-added NGOs, and record the audit
+    row -- all in one transaction, left uncommitted for the caller to commit.
+    """
     # Refuse an NGO that could never follow through: the same deterministic gate that
     # `submit_proposal` applies. Without this the CSR shortlists an organisation, it is
     # told it was selected, and it then hits a 403 it cannot clear.
-    ngo_ids = list(dict.fromkeys(payload.ngo_ids))
+    ngo_ids = list(dict.fromkeys(raw_ngo_ids))
     blocked: dict[str, list[str]] = {}
     for ngo_id in ngo_ids:
         org = db.get(Organization, ngo_id)
@@ -172,23 +169,38 @@ def create_shortlist(
         revision_num=next_revision,
         ngo_ids=ngo_ids,
         is_current=True,
-        selected_by_user_id=user.id,
+        selected_by_user_id=actor_user_id,
     )
     db.add(shortlist)
     db.flush()
     record_audit(
         db,
-        action="shortlist.created",
+        action=action,
         resource_type="shortlist",
         resource_id=shortlist.id,
-        actor_user_id=user.id,
+        actor_user_id=actor_user_id,
         org_id=opp.org_id,
         details={"ngo_ids": ngo_ids, "newly_added": sorted(set(ngo_ids) - previously)},
     )
 
     # The point of a shortlist is that the NGO finds out. Same transaction as the audit row.
-    notify_on_shortlisted(db, opp, ngo_ids, user.id, previously_shortlisted=frozenset(previously))
+    notify_on_shortlisted(db, opp, ngo_ids, actor_user_id, previously_shortlisted=frozenset(previously))
 
+    return shortlist
+
+
+@router.post("/shortlist", response_model=ShortlistOut, status_code=status.HTTP_201_CREATED)
+def create_shortlist(
+    payload: ShortlistIn,
+    user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+) -> ShortlistOut:
+    opp = db.get(Opportunity, payload.opportunity_id)
+    if opp is None:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "Opportunity not found")
+    require_membership(db, user, opp.org_id, allowed_roles=MANAGE)
+
+    shortlist = create_shortlist_revision(db, opp, payload.ngo_ids, user.id, action="shortlist.created")
     db.commit()
     return _shortlist_out(shortlist)
 
@@ -415,6 +427,7 @@ def _opportunity_out(opp: Opportunity) -> OpportunityOut:
         budget_max=opp.budget_max,
         deadline=opp.deadline,
         requirements_text=opp.requirements_text,
+        fcra_required=opp.fcra_required,
         status=opp.status,
         published_at=opp.published_at,
         created_at=opp.created_at,

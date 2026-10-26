@@ -78,16 +78,15 @@ def update_notification_preferences(
     prefs.ngo_verified = body.ngo_verified
     prefs.donor_digest = body.donor_digest
     prefs.marketing_emails = body.marketing_emails
+    db.flush()
 
-    db.commit()
-    db.refresh(prefs)
-
-    log_action(
-        db=db,
-        actor_user_id=user.id,
+    # Audit is staged in the same transaction as the preference change, then committed together.
+    record_audit(
+        db,
         action="notification_preferences_updated",
         resource_type="notification_preferences",
         resource_id=prefs.id,
+        actor_user_id=user.id,
         details={
             "donation_received": body.donation_received,
             "milestone_reached": body.milestone_reached,
@@ -97,6 +96,9 @@ def update_notification_preferences(
             "marketing_emails": body.marketing_emails,
         },
     )
+
+    db.commit()
+    db.refresh(prefs)
 
     return NotificationPreferencesOut(
         id=prefs.id,
@@ -183,15 +185,18 @@ def send_test_email(
         status="PENDING",
     )
     db.add(test_email)
-    db.commit()
+    db.flush()
 
-    log_action(
-        db=db,
-        actor_user_id=user.id,
+    # Audit is staged in the same transaction as the queued email, then committed together.
+    record_audit(
+        db,
         action="test_email_sent",
         resource_type="email_queue",
         resource_id=test_email.id,
+        actor_user_id=user.id,
         details={"recipient_email": user.email},
     )
+
+    db.commit()
 
     return {"status": "test email queued", "email_id": test_email.id}

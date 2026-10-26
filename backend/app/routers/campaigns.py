@@ -4,7 +4,7 @@ import uuid
 from datetime import UTC, datetime, date
 
 from fastapi import APIRouter, Depends, HTTPException, status
-from sqlalchemy import select
+from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
 from annotated_types import MinLen
@@ -251,7 +251,7 @@ def add_milestone(
 
     # Get next sequence number
     max_seq = db.scalar(
-        select(max(CampaignMilestone.sequence_num)).where(CampaignMilestone.campaign_id == campaign.id)
+        select(func.max(CampaignMilestone.sequence_num)).where(CampaignMilestone.campaign_id == campaign.id)
     ) or 0
 
     milestone = CampaignMilestone(

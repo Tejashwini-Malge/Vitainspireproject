@@ -32,6 +32,7 @@ from app.models import (
     ProposalMessage,
     ProposalTimeline,
     ProposalEscalation,
+    Receivable,
     ReviewStatus,
     Role,
     Shortlist,
@@ -49,6 +50,8 @@ from app.schemas import (
     ProposalMessageIn,
     ProposalMessageOut,
     ProposalTimelineOut,
+    ReceivableOut,
+    ReceivableSetIn,
 )
 
 router = APIRouter(tags=["proposals"])
@@ -399,7 +402,7 @@ def generate_about(
 ) -> dict:
     """Generate about section based on mission, sectors, and optionally website content."""
     from app.config import settings
-    import requests
+    import httpx
     from bs4 import BeautifulSoup
 
     mission = payload.get("mission", "")
@@ -417,7 +420,7 @@ def generate_about(
             if not website_url.startswith(("http://", "https://")):
                 website_url = f"https://{website_url}"
 
-            response = requests.get(website_url, timeout=5)
+            response = httpx.get(website_url, timeout=5, follow_redirects=True)
             if response.status_code == 200:
                 soup = BeautifulSoup(response.content, "html.parser")
 
@@ -462,7 +465,7 @@ Generate 2-3 sentences describing the organization's work, approach, and impact.
 Return ONLY the text, no JSON."""
 
         # Use OpenRouter API
-        response = requests.post(
+        response = httpx.post(
             "https://openrouter.ai/api/v1/chat/completions",
             headers={
                 "Authorization": f"Bearer {settings.llm_api_key}",
@@ -505,7 +508,7 @@ def generate_proposal_draft(
     """
     from app.config import settings
     import json as json_lib
-    import requests
+    import httpx
 
     opportunity_id = payload.get("opportunity_id")
     if not opportunity_id:
@@ -558,7 +561,7 @@ Return ONLY a JSON object with these exact keys, no markdown, no commentary:
 }}"""
 
     try:
-        response = requests.post(
+        response = httpx.post(
             "https://openrouter.ai/api/v1/chat/completions",
             headers={
                 "Authorization": f"Bearer {settings.llm_api_key}",
@@ -853,6 +856,121 @@ def verify_delivery_milestone(
     )
     db.commit()
     return _milestone_out(milestone)
+
+
+def _receivable_out(r: Receivable) -> ReceivableOut:
+    return ReceivableOut(
+        id=r.id,
+        proposal_id=r.proposal_id,
+        commitment_id=r.commitment_id,
+        ngo_id=r.ngo_id,
+        opportunity_id=r.opportunity_id,
+        sequence_num=r.sequence_num,
+        amount_minor=r.amount_minor,
+        due_date=r.due_date,
+        status=r.status,
+        utr=r.utr,
+        reconciled_at=r.reconciled_at,
+        reconciled_by_user_id=r.reconciled_by_user_id,
+        notes=r.notes,
+        created_at=r.created_at,
+        updated_at=r.updated_at,
+    )
+
+
+@router.get("/proposals/{proposal_id}/receivables", response_model=list[ReceivableOut])
+def get_receivables(
+    proposal_id: str,
+    user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+) -> list[ReceivableOut]:
+    """The payment schedule and its reconciliation state. Both the NGO and the funding
+    CSR read this; only the CSR can declare the schedule and only an admin can reconcile
+    a tranche (see POST .../receivables and POST /admin/receivables/{id}/reconcile)."""
+    proposal = db.get(Proposal, proposal_id)
+    if proposal is None:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "Proposal not found")
+    _party_for_proposal(db, user, proposal)
+
+    rows = db.scalars(
+        select(Receivable)
+        .where(Receivable.proposal_id == proposal.proposal_id)
+        .order_by(Receivable.sequence_num)
+    ).all()
+    return [_receivable_out(r) for r in rows]
+
+
+@router.post(
+    "/csr/proposals/{proposal_id}/receivables",
+    response_model=list[ReceivableOut],
+    status_code=status.HTTP_201_CREATED,
+)
+def set_receivables(
+    proposal_id: str,
+    payload: ReceivableSetIn,
+    user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+) -> list[ReceivableOut]:
+    """The funding CSR declares its payment schedule against an approved proposal.
+
+    Replaces the existing schedule, which is only allowed while no tranche has been
+    reconciled -- once admin/finance has confirmed money actually arrived against a
+    tranche, that fact cannot be rewritten by a new schedule.
+    """
+    proposal = db.get(Proposal, proposal_id)
+    if proposal is None:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "Proposal not found")
+    opp = db.get(Opportunity, proposal.opportunity_id)
+    require_membership(db, user, opp.org_id, allowed_roles=MANAGE)
+    commitment = _approved_commitment(db, proposal)
+
+    existing = db.scalars(
+        select(Receivable).where(Receivable.proposal_id == proposal.proposal_id)
+    ).all()
+    if any(r.status != "PENDING" for r in existing):
+        raise HTTPException(
+            status.HTTP_409_CONFLICT,
+            "At least one tranche has already been reconciled. The schedule can no longer be replaced.",
+        )
+
+    total = sum(r.amount_minor for r in payload.receivables)
+    if total > commitment.amount_minor:
+        raise HTTPException(
+            status.HTTP_422_UNPROCESSABLE_ENTITY,
+            f"Receivable amounts total {total}, which exceeds the committed {commitment.amount_minor}.",
+        )
+
+    for r in existing:
+        db.delete(r)
+    db.flush()
+
+    created: list[Receivable] = []
+    for i, item in enumerate(payload.receivables, start=1):
+        receivable = Receivable(
+            proposal_id=proposal.proposal_id,
+            commitment_id=commitment.id,
+            ngo_id=proposal.ngo_id,
+            opportunity_id=proposal.opportunity_id,
+            sequence_num=i,
+            amount_minor=item.amount_minor,
+            due_date=item.due_date,
+            status="PENDING",
+        )
+        db.add(receivable)
+        created.append(receivable)
+    db.flush()
+
+    record_audit(
+        db,
+        action="receivables.set",
+        resource_type="proposal",
+        resource_id=proposal.id,
+        actor_user_id=user.id,
+        org_id=opp.org_id,
+        details={"count": len(created), "total_amount_minor": total},
+    )
+    db.commit()
+    return [_receivable_out(r) for r in created]
 
 
 # Messaging routes

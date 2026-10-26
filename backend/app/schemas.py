@@ -41,6 +41,12 @@ class OrgOut(BaseModel):
     verification_status: VerificationStatus
     verification_reason: str | None
     verified_at: datetime | None = None
+    review_due_at: datetime | None = None
+    review_reason: str | None = None
+
+
+class ReviewRequestIn(BaseModel):
+    reason: str = Field(min_length=1, max_length=1000)
 
 
 class MemberAddIn(BaseModel):
@@ -119,6 +125,34 @@ class ProfileOut(BaseModel):
     registration_number: str | None
     section_80g_number: str | None
     published_at: datetime | None
+    updated_at: datetime
+
+
+class CsrProfileIn(BaseModel):
+    mission: str = Field(min_length=1, max_length=1000)
+    about: str | None = Field(default=None, max_length=4000)
+    website: str | None = Field(default=None, max_length=300)
+    cin: str | None = Field(default=None, max_length=30)
+    csr_budget_minor: int | None = Field(default=None, ge=0)
+    schedule_vii_categories: list[str] = Field(default_factory=list, max_length=20)
+
+    @field_validator("schedule_vii_categories")
+    @classmethod
+    def _clean_categories(cls, values: list[str]) -> list[str]:
+        cleaned = [v.strip() for v in values if v.strip()]
+        if any(len(v) > 80 for v in cleaned):
+            raise ValueError("Each Schedule VII category must be 80 characters or fewer")
+        return cleaned
+
+
+class CsrProfileOut(BaseModel):
+    org_id: str
+    mission: str
+    about: str | None
+    website: str | None
+    cin: str | None
+    csr_budget_minor: int | None
+    schedule_vii_categories: list[str]
     updated_at: datetime
 
 
@@ -397,6 +431,7 @@ class OpportunityIn(BaseModel):
     budget_max: int | None = Field(default=None, ge=0)
     deadline: date
     requirements_text: str = Field(min_length=10)
+    fcra_required: bool = False
 
 
 class OpportunityOut(BaseModel):
@@ -410,6 +445,7 @@ class OpportunityOut(BaseModel):
     budget_max: int | None
     deadline: date
     requirements_text: str
+    fcra_required: bool
     status: str
     published_at: datetime | None
     created_at: datetime
@@ -452,6 +488,50 @@ class ShortlistOut(BaseModel):
     is_current: bool
     selected_by_user_id: str
     selected_at: datetime
+
+
+class ShortlistReorderIn(BaseModel):
+    ngo_ids: list[str] = Field(min_length=1)
+
+
+class AdminShortlistRowOut(BaseModel):
+    """One shortlist revision, for the admin directory across every opportunity."""
+    id: str
+    opportunity_id: str
+    opportunity_title: str
+    csr_org_name: str
+    revision_num: int
+    ngo_ids: list[str]
+    is_current: bool
+    selected_by_user_id: str
+    selected_at: datetime
+
+
+class AuditEventOut(BaseModel):
+    """One row of the audit export, including its position and hash-chain fields so a
+    client can independently verify the chain itself rather than trust this endpoint."""
+    id: str
+    seq: int
+    occurred_at: datetime
+    actor_user_id: str | None
+    actor_service: str | None
+    action: str
+    resource_type: str
+    resource_id: str
+    org_id: str | None
+    details: dict
+    correlation_id: str | None
+    prev_hash: str | None
+    row_hash: str | None
+
+
+class AuditVerifyOut(BaseModel):
+    """Result of recomputing the hash chain over the exported range and comparing it to
+    what is stored. `first_broken_seq` is null when the chain holds."""
+    checked: int
+    valid: bool
+    first_broken_seq: int | None = None
+    reason: str | None = None
 
 
 class ProposalIn(BaseModel):
@@ -538,6 +618,41 @@ class DeliveryMilestoneOut(BaseModel):
     completed_at: datetime | None
     verified_at: datetime | None
     verified_by_user_id: str | None
+    created_at: datetime
+    updated_at: datetime
+
+
+class ReceivableIn(BaseModel):
+    amount_minor: int = Field(gt=0)
+    due_date: date
+
+
+class ReceivableSetIn(BaseModel):
+    """The CSR's full payment schedule for a confirmed commitment. Replaces any schedule
+    not yet reconciled."""
+
+    receivables: list[ReceivableIn] = Field(min_length=1, max_length=50)
+
+
+class ReceivableReconcileIn(BaseModel):
+    utr: str = Field(min_length=4, max_length=64)
+    notes: str | None = Field(default=None, max_length=1000)
+
+
+class ReceivableOut(BaseModel):
+    id: str
+    proposal_id: str
+    commitment_id: str
+    ngo_id: str
+    opportunity_id: str
+    sequence_num: int
+    amount_minor: int
+    due_date: date
+    status: str
+    utr: str | None
+    reconciled_at: datetime | None
+    reconciled_by_user_id: str | None
+    notes: str | None
     created_at: datetime
     updated_at: datetime
 
@@ -746,6 +861,7 @@ class CampaignDonationIn(BaseModel):
     donor_name: str = Field(min_length=2, max_length=200)
     donor_email: EmailStr
     amount: int = Field(gt=0)
+    currency: str = Field(default="INR", min_length=3, max_length=3)
     message: str | None = Field(default=None, max_length=500)
     is_anonymous: bool = False
 
@@ -1159,6 +1275,7 @@ class AdminOrgRowOut(BaseModel):
     verification_status: str
     verification_reason: str | None
     verified_at: datetime | None
+    review_due_at: datetime | None
     created_at: datetime
     member_count: int
     project_count: int

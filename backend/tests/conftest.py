@@ -21,7 +21,7 @@ BACKEND_DIR = Path(__file__).resolve().parents[1]
 # Mutable tables are cleared between tests. The audit log is append-only and is never truncated by tests;
 # tests therefore filter audit rows by the resource they created.
 MUTABLE_TABLES = (
-    "users, sessions, memberships, organizations, ngo_profiles, documents, document_review_decisions, "
+    "users, sessions, memberships, organizations, ngo_profiles, csr_profiles, documents, document_review_decisions, "
     "pan_verifications, pan_verification_decisions, "
     "projects, donations, opportunities, eligibility_rules, eligibility_results, fit_scores, shortlists, "
     "proposals, approval_requests, commitments, finance_ledger, matching_jobs"
@@ -45,7 +45,7 @@ def clean_tables():
     with engine.begin() as conn:
         # All mutable tables, in order of dependencies (independent first)
         conn.execute(text(
-            "TRUNCATE users, sessions, memberships, organizations, ngo_profiles, documents, "
+            "TRUNCATE users, sessions, memberships, organizations, ngo_profiles, csr_profiles, documents, "
             "document_review_decisions, pan_verifications, pan_verification_decisions, "
             "projects, donations, eligibility_rules, "
             "opportunities, eligibility_results, fit_scores, shortlists, proposals, "

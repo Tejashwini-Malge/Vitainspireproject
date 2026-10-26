@@ -9,7 +9,7 @@ from sqlalchemy.orm import Session
 
 from app.audit import record_audit
 from app.db import get_db
-from app.deps import get_current_user
+from app.deps import get_current_user, get_current_user_optional
 from app.domain.visibility import PUBLIC_NGO_FILTER
 from app.models import (
     Campaign,
@@ -182,10 +182,15 @@ def get_campaign_impact(
 def create_donation(
     campaign_id: str,
     payload: CampaignDonationIn,
-    user: User = Depends(get_current_user),
+    user: User | None = Depends(get_current_user_optional),
     db: Session = Depends(get_db),
 ) -> CampaignDonationOut:
-    """Create a donation to a campaign (authenticated donor)."""
+    """Create a donation to a campaign.
+
+    This sits on the public campaigns router, so it accepts unauthenticated calls too
+    (consistent with the org-level donate endpoint in app.routers.donations) -- a bearer
+    token attributes the donation to the signed-in donor, its absence does not block it.
+    """
     campaign = db.get(Campaign, campaign_id)
     if campaign is None or campaign.status != "LIVE":
         raise HTTPException(status.HTTP_404_NOT_FOUND, "Campaign not found")
@@ -201,12 +206,12 @@ def create_donation(
         donation_type_id=payload.donation_type_id,
         donor_name=payload.donor_name.strip(),
         donor_email=payload.donor_email.lower(),
-        donor_user_id=user.id,
+        donor_user_id=user.id if user else None,
         type=donation_type.type,
         amount=payload.amount,
         currency=payload.currency.upper(),
         message=payload.message.strip() if payload.message else None,
-        is_anonymous=payload.is_anonymous,
+        is_anonymous=payload.is_anonymous or user is None,
         status="PENDING",  # Will move to COMPLETED after payment
     )
     db.add(donation)
@@ -222,7 +227,7 @@ def create_donation(
         action="donation.created",
         resource_type="donation",
         resource_id=donation.id,
-        actor_user_id=user.id,
+        actor_user_id=user.id if user else None,
         org_id=campaign.ngo_id,
     )
     db.commit()
@@ -272,6 +277,7 @@ def create_anonymous_donation(
         action="donation.created_anonymous",
         resource_type="donation",
         resource_id=donation.id,
+        actor_user_id=None,
         org_id=campaign.ngo_id,
     )
     db.commit()

@@ -2,7 +2,7 @@ import enum
 import uuid
 from datetime import date, datetime
 
-from sqlalchemy import JSON, Date, DateTime, Enum, ForeignKey, Integer, String, Text, UniqueConstraint, func
+from sqlalchemy import JSON, BigInteger, Date, DateTime, Enum, ForeignKey, Identity, Integer, String, Text, UniqueConstraint, func
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.db import Base
@@ -63,6 +63,15 @@ class Organization(Base):
     )
     verification_reason: Mapped[str | None] = mapped_column(String(1000), nullable=True)
     verified_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    # Orthogonal to verification_status, deliberately: flagging a decided organisation for
+    # re-verification (annual renewal, an expiring document, a complaint) should not itself
+    # revoke whatever verification_status already grants it -- an org under review keeps
+    # operating until an admin actually issues a new decision. Set by
+    # POST /admin/organizations/{id}/request-review, cleared when that new decision lands
+    # or the review is explicitly dismissed.
+    review_due_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True, index=True)
+    review_requested_by_user_id: Mapped[str | None] = mapped_column(ForeignKey("users.id"), nullable=True)
+    review_reason: Mapped[str | None] = mapped_column(String(1000), nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
 
 
@@ -78,11 +87,21 @@ class Membership(Base):
 
 
 class AuditEvent(Base):
-    """Append-only. Written in the same transaction as the action it records."""
+    """Append-only. Written in the same transaction as the action it records.
+
+    `seq`, `row_hash`, and `prev_hash` form a hash chain (ADM-017, NEG-013): each row's
+    hash covers its own content plus the previous row's hash, so an export can be checked
+    for tampering -- a row edited, deleted, or reinserted out of order breaks the chain at
+    that point. `seq` is a separate DB-assigned identity rather than `occurred_at`, because
+    wall-clock time is not reliable ordering under concurrent writes; the chain follows
+    insertion order instead. A row written before this chain existed has a null row_hash
+    and is simply not covered by verification, rather than treated as corrupt.
+    """
 
     __tablename__ = "audit_events"
 
     id: Mapped[str] = mapped_column(String(36), primary_key=True, default=_uuid)
+    seq: Mapped[int] = mapped_column(BigInteger, Identity(), index=True)
     occurred_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), index=True)
     actor_user_id: Mapped[str | None] = mapped_column(String(36), nullable=True, index=True)
     actor_service: Mapped[str | None] = mapped_column(String(64), nullable=True)
@@ -92,6 +111,8 @@ class AuditEvent(Base):
     org_id: Mapped[str | None] = mapped_column(String(36), nullable=True, index=True)
     details: Mapped[dict] = mapped_column(JSON, default=dict)
     correlation_id: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    row_hash: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    prev_hash: Mapped[str | None] = mapped_column(String(64), nullable=True)
 
 
 class ProfileStatus(str, enum.Enum):
@@ -139,6 +160,30 @@ class NgoProfile(Base):
     section_80g_number: Mapped[str | None] = mapped_column(String(100), nullable=True)
     status: Mapped[ProfileStatus] = mapped_column(Enum(ProfileStatus, name="profile_status"), default=ProfileStatus.DRAFT)
     published_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+
+
+class CsrProfile(Base):
+    """CSR organization-provided content: the donor-facing identity and statutory fields
+    the sheet expects (CIN, CSR budget, Schedule VII focus areas). No publish/draft gate --
+    unlike an NGO profile, nothing downstream (eligibility, public feed) depends on a CSR
+    profile being complete, so there is nothing to block here.
+    """
+
+    __tablename__ = "csr_profiles"
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=_uuid)
+    org_id: Mapped[str] = mapped_column(ForeignKey("organizations.id"), unique=True)
+    mission: Mapped[str] = mapped_column(String(1000), default="")
+    about: Mapped[str | None] = mapped_column(Text, nullable=True)
+    website: Mapped[str | None] = mapped_column(String(300), nullable=True)
+    # Corporate Identification Number, issued by the Ministry of Corporate Affairs.
+    cin: Mapped[str | None] = mapped_column(String(30), nullable=True)
+    # Annual CSR budget in integer minor units (paise), matching every other money field.
+    csr_budget_minor: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    # Schedule VII of the Companies Act, 2013 -- the statutory categories this CSR's
+    # spending must fall under (e.g. "education", "health", "environment").
+    schedule_vii_categories: Mapped[list] = mapped_column(JSON, default=list)
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
 
 
@@ -296,6 +341,9 @@ class Opportunity(Base):
     budget_max: Mapped[int | None] = mapped_column(Integer, nullable=True)
     deadline: Mapped[date] = mapped_column(Date)
     requirements_text: Mapped[str] = mapped_column(Text)
+    # Structured counterpart to requirements_text: when true, an NGO must have an approved
+    # FCRA document to be eligible for this opportunity. See app.ai.fit.eligibility_reasons.
+    fcra_required: Mapped[bool] = mapped_column(default=False)
     status: Mapped[str] = mapped_column(String(20), default="DRAFT")
     published_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
@@ -467,6 +515,45 @@ class FinanceLedger(Base):
     recorded_by_user_id: Mapped[str] = mapped_column(ForeignKey("users.id"))
     recorded_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
     correlation_id: Mapped[str | None] = mapped_column(String(64), nullable=True)
+
+
+class Receivable(Base):
+    """One expected tranche of CSR funding against a confirmed Commitment (ADM-009,
+    DON-010). The CSR declares the schedule it intends to pay on; admin/finance later
+    reconciles each tranche against the UTR (Unique Transaction Reference) of the actual
+    bank transfer once it clears -- a separate step, because receiving money is a fact
+    about the bank statement, not something either counterparty should self-attest.
+
+    `proposal_id` is the *stable* Proposal.proposal_id family key, matching
+    DeliveryMilestone, so the schedule survives a proposal revision.
+    """
+
+    __tablename__ = "receivables"
+    __table_args__ = (
+        UniqueConstraint("proposal_id", "sequence_num", name="uq_receivable_proposal_sequence"),
+        UniqueConstraint("utr", name="uq_receivable_utr"),
+    )
+
+    STATUSES = ("PENDING", "RECONCILED")
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=_uuid)
+    proposal_id: Mapped[str] = mapped_column(String(36), index=True)
+    commitment_id: Mapped[str] = mapped_column(ForeignKey("commitments.id"), index=True)
+    ngo_id: Mapped[str] = mapped_column(ForeignKey("organizations.id"), index=True)
+    opportunity_id: Mapped[str] = mapped_column(ForeignKey("opportunities.id"), index=True)
+    sequence_num: Mapped[int] = mapped_column(Integer)
+    amount_minor: Mapped[int] = mapped_column(Integer)
+    due_date: Mapped[date] = mapped_column(Date)
+    status: Mapped[str] = mapped_column(String(20), default="PENDING")
+    # Set only on reconciliation. utr is unique platform-wide: the same bank transfer
+    # reference can never reconcile two different tranches, which would double-count money
+    # that was only received once.
+    utr: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    reconciled_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    reconciled_by_user_id: Mapped[str | None] = mapped_column(ForeignKey("users.id"), nullable=True)
+    notes: Mapped[str | None] = mapped_column(String(1000), nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
 
 
 class MatchingJob(Base):

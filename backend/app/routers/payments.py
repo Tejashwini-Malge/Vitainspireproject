@@ -63,6 +63,12 @@ def initiate_payment(
     if campaign is None:
         raise HTTPException(status.HTTP_404_NOT_FOUND, "Campaign not found")
 
+    if campaign.status != "LIVE":
+        raise HTTPException(
+            status.HTTP_422_UNPROCESSABLE_ENTITY,
+            "This campaign is not live yet. Payments can only be initiated for admin-approved, live campaigns.",
+        )
+
     # Validate amount
     if payload.amount_minor < 10000:  # Minimum ₹100
         raise HTTPException(status.HTTP_422_UNPROCESSABLE_ENTITY, "Minimum donation is ₹100")
@@ -307,6 +313,12 @@ def create_recurring_donation(
     campaign = db.get(Campaign, payload.campaign_id)
     if campaign is None:
         raise HTTPException(status.HTTP_404_NOT_FOUND, "Campaign not found")
+
+    if campaign.status != "LIVE":
+        raise HTTPException(
+            status.HTTP_422_UNPROCESSABLE_ENTITY,
+            "This campaign is not live yet. Recurring donations can only be created for admin-approved, live campaigns.",
+        )
 
     # Validate amount
     if payload.amount_minor < 10000:  # Minimum ₹100
